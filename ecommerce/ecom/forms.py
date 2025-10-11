@@ -30,6 +30,18 @@ class CustomerUserForm(forms.ModelForm):
         if password != confirm_password:
             raise forms.ValidationError("Passwords do not match")
 
+        # Password strength validation
+        if password:
+            import re
+            if len(password) < 8:
+                raise forms.ValidationError("Password must be at least 8 characters long.")
+            if not re.search(r'[A-Z]', password):
+                raise forms.ValidationError("Password must include at least one uppercase letter.")
+            if not re.search(r'[0-9]', password):
+                raise forms.ValidationError("Password must include at least one number.")
+            if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+                raise forms.ValidationError("Password must include at least one symbol (e.g. !, @, #, $, %).")
+
 
 # Customer personal details form
 class CustomerForm(forms.ModelForm):

@@ -463,23 +463,7 @@
                 <p>Create your account and start shopping premium jerseys</p>
               </div>
 
-              <!-- Display form errors -->
-              {% if form.errors or userForm.errors or customerForm.errors %}
-                <div class="error-messages">
-                  <ul>
-                    {% for field, errors in userForm.errors.items %}
-                      {% for error in errors %}
-                        <li>{{ field|title }}: {{ error }}</li>
-                      {% endfor %}
-                    {% endfor %}
-                    {% for field, errors in customerForm.errors.items %}
-                      {% for error in errors %}
-                        <li>{{ field|title }}: {{ error }}</li>
-                      {% endfor %}
-                    {% endfor %}
-                  </ul>
-                </div>
-              {% endif %}
+
 
               <!-- Success message -->
               {% if messages %}
@@ -501,10 +485,20 @@
                   <div class="form-group">
                     <label for="{{ userForm.first_name.id_for_label }}">First Name</label>
                     {% render_field userForm.first_name class="form-control" placeholder="First Name" %}
+                    {% if userForm.first_name.errors %}
+                      <div class="error-messages" style="margin-top: 5px;">
+                        {{ userForm.first_name.errors.0 }}
+                      </div>
+                    {% endif %}
                   </div>
                   <div class="form-group">
                     <label for="{{ userForm.last_name.id_for_label }}">Last Name</label>
                     {% render_field userForm.last_name class="form-control" placeholder="Last Name" %}
+                    {% if userForm.last_name.errors %}
+                      <div class="error-messages" style="margin-top: 5px;">
+                        {{ userForm.last_name.errors.0 }}
+                      </div>
+                    {% endif %}
                   </div>
                 </div>
 
@@ -512,6 +506,11 @@
                 <div class="form-group">
                   <label for="{{ userForm.username.id_for_label }}">Username</label>
                   {% render_field userForm.username class="form-control" placeholder="Username" %}
+                  {% if userForm.username.errors %}
+                    <div class="error-messages" style="margin-top: 5px;">
+                      {{ userForm.username.errors.0 }}
+                    </div>
+                  {% endif %}
                 </div>
 
                 <!-- Account Security -->
@@ -521,11 +520,21 @@
                 <div class="form-group">
                   <label for="{{ userForm.password.id_for_label }}">Password</label>
                   {% render_field userForm.password class="form-control" placeholder="Password" %}
+                  {% if userForm.password.errors %}
+                    <div class="error-messages" style="margin-top: 5px;">
+                      {{ userForm.password.errors.0 }}
+                    </div>
+                  {% endif %}
                 </div>
                 <!-- Confirm Password -->
                 <div class="form-group">
                   <label for="{{ userForm.confirm_password.id_for_label }}">Confirm Password</label>
                   {% render_field userForm.confirm_password class="form-control" placeholder="Confirm Password" %}
+                  {% if userForm.confirm_password.errors %}
+                    <div class="error-messages" style="margin-top: 5px;">
+                      {{ userForm.confirm_password.errors.0 }}
+                    </div>
+                  {% endif %}
                 </div>
 
                 <!-- Shipping Address -->
@@ -566,6 +575,11 @@
                 <div class="form-group">
                   <label for="{{ customerForm.street_address.id_for_label }}">Street Address</label>
                   {% render_field customerForm.street_address class="form-control" placeholder="Street Address" %}
+                  {% if customerForm.street_address.errors %}
+                    <div class="error-messages" style="margin-top: 5px;">
+                      {{ customerForm.street_address.errors.0 }}
+                    </div>
+                  {% endif %}
                 </div>
 
                 <script>
@@ -825,4 +839,3 @@
   </body>
 </html>
 
-a

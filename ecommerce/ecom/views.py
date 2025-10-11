@@ -1235,11 +1235,8 @@ def add_to_cart_view(request, pk):
 
     new_quantity = existing_quantity + quantity
 
-    response = render(request, 'ecom/index.html', {
-        'products': products,
-        'product_count_in_cart': product_count_in_cart,
-        'redirect_to': next_page
-    })
+    # Redirect back to customer home instead of rendering index
+    response = redirect('customer-home')
     response.set_cookie(cookie_key, f"{size}:{new_quantity}")
 
     # Update product_ids cookie to include product_{pk}_{size}
@@ -1254,7 +1251,7 @@ def add_to_cart_view(request, pk):
         updated_product_ids = product_key
     response.set_cookie('product_ids', updated_product_ids)
 
-    messages.info(request, product.name + f' (Size: {size}) added to cart successfully!')
+    messages.success(request, product.name + f' (Size: {size}) added to cart successfully!')
 
     return response
 
