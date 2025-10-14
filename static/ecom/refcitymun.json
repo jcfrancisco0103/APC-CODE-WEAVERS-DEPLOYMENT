@@ -1,0 +1,8 @@
+[
+  { "citymunCode": "030101", "citymunDesc": "Malolos", "provCode": "0301" },
+  { "citymunCode": "030201", "citymunDesc": "San Fernando City", "provCode": "0302" },
+  { "citymunCode": "040101", "citymunDesc": "Bacoor City", "provCode": "0401" },
+  { "citymunCode": "040201", "citymunDesc": "Santa Rosa City", "provCode": "0402" },
+  { "citymunCode": "040301", "citymunDesc": "Batangas City", "provCode": "0403" },
+  { "citymunCode": "070101", "citymunDesc": "Cebu City", "provCode": "0701" }
+]

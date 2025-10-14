@@ -1,0 +1,8 @@
+[
+  { "provCode": "0301", "provDesc": "Bulacan", "regCode": "030000000" },
+  { "provCode": "0302", "provDesc": "Pampanga", "regCode": "030000000" },
+  { "provCode": "0401", "provDesc": "Cavite", "regCode": "040000000" },
+  { "provCode": "0402", "provDesc": "Laguna", "regCode": "040000000" },
+  { "provCode": "0403", "provDesc": "Batangas", "regCode": "040000000" },
+  { "provCode": "0701", "provDesc": "Cebu", "regCode": "070000000" }
+]

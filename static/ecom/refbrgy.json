@@ -1,0 +1,8 @@
+[
+  { "brgyCode": "030101001", "brgyDesc": "Barangay 1", "citymunCode": "030101" },
+  { "brgyCode": "030101002", "brgyDesc": "Barangay 2", "citymunCode": "030101" },
+  { "brgyCode": "040101001", "brgyDesc": "Barangay 1", "citymunCode": "040101" },
+  { "brgyCode": "040201001", "brgyDesc": "Barangay 1", "citymunCode": "040201" },
+  { "brgyCode": "040301001", "brgyDesc": "Barangay 1", "citymunCode": "040301" },
+  { "brgyCode": "070101001", "brgyDesc": "Barangay 1", "citymunCode": "070101" }
+]
