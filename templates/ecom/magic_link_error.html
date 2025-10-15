@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Unable to Update Status</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .error-card {
+            border: none;
+            box-shadow: 0 0 30px rgba(220, 53, 69, 0.2);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .error-header {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            animation: shake 0.5s ease-in-out infinite alternate;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(5px); }
+        }
+        .btn-custom {
+            border-radius: 25px;
+            padding: 12px 30px;
+            margin: 10px;
+        }
+        .error-details {
+            background: #f8f9fa;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+                <div class="card error-card">
+                    <div class="error-header">
+                        <div class="error-icon">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <h2>Oops! Something went wrong</h2>
+                        <p class="mb-0">We couldn't process your request</p>
+                    </div>
+                    
+                    <div class="card-body p-4">
+                        {% if order %}
+                        <div class="text-center mb-3">
+                            <h5><i class="fas fa-box text-primary"></i> Order: {{ order.order_ref }}</h5>
+                        </div>
+                        {% endif %}
+
+                        <div class="error-details">
+                            <h6><i class="fas fa-info-circle text-danger"></i> Error Details</h6>
+                            <p class="mb-0">{{ error }}</p>
+                        </div>
+
+                        <div class="text-center">
+                            <h6><i class="fas fa-question-circle text-warning"></i> What can you do?</h6>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="fas fa-check text-success"></i> Check if the link is still valid</li>
+                                <li><i class="fas fa-check text-success"></i> Try refreshing the page</li>
+                                <li><i class="fas fa-check text-success"></i> Contact customer support if the issue persists</li>
+                            </ul>
+                        </div>
+
+                        <div class="text-center mt-4">
+                            {% if order %}
+                            <a href="{% url 'delivery-status-page' order.deliverymagiclink.token %}" 
+                               class="btn btn-primary btn-custom">
+                                <i class="fas fa-eye"></i> View Order Status
+                            </a>
+                            {% endif %}
+                            <button onclick="window.location.reload()" class="btn btn-warning btn-custom">
+                                <i class="fas fa-redo"></i> Try Again
+                            </button>
+                            <a href="/" class="btn btn-outline-secondary btn-custom">
+                                <i class="fas fa-home"></i> Back to Home
+                            </a>
+                        </div>
+
+                        <div class="alert alert-warning mt-4" role="alert">
+                            <i class="fas fa-phone"></i>
+                            <strong>Need Help?</strong> Contact our customer support team if you continue experiencing issues.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

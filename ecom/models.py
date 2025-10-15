@@ -165,6 +165,8 @@ class Orders(models.Model):
     payment_method = models.CharField(max_length=10, choices=PAYMENT_METHODS, default='cod', help_text='Payment method for the order')
     order_ref = models.CharField(max_length=12, unique=True, null=True, blank=True, help_text='Unique short order reference ID')
     delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text='Delivery fee for this order')
+    delivery_proof_photo = models.ImageField(upload_to='delivery_proof/', null=True, blank=True, help_text='Customer uploaded proof of delivery photo')
+    customer_received_at = models.DateTimeField(null=True, blank=True, help_text='When customer confirmed receipt with photo proof')
     
     def __str__(self):
         return f"Order {self.order_ref or self.id} - {self.customer.user.username if self.customer else 'No Customer'}"
@@ -358,6 +360,71 @@ class ChatbotKnowledge(models.Model):
 
     def get_keywords_list(self):
         return [keyword.strip().lower() for keyword in self.keywords.split(',')]
+
+
+# Automated Delivery System Models
+class DeliveryMagicLink(models.Model):
+    """Model to store magic links for external delivery status updates"""
+    order = models.OneToOneField(Orders, on_delete=models.CASCADE, related_name='magic_link')
+    token = models.CharField(max_length=64, unique=True, help_text="Unique token for the magic link")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(help_text="When this magic link expires")
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"Magic Link for Order {self.order.order_ref}"
+    
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.expires_at
+    
+    def get_status_url(self):
+        """Get the URL for viewing delivery status"""
+        return f"/delivery/status/{self.token}/"
+    
+    def get_update_url(self, action):
+        """Get the URL for updating delivery status"""
+        return f"/delivery/update/{self.token}/{action}/"
+
+
+class DeliveryStatusLog(models.Model):
+    """Model to track delivery status changes and updates"""
+    order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name='status_logs')
+    previous_status = models.CharField(max_length=50, null=True, blank=True)
+    new_status = models.CharField(max_length=50)
+    updated_by = models.CharField(max_length=100, help_text="Who updated the status (admin, system, external)")
+    update_method = models.CharField(max_length=50, help_text="How the status was updated (dashboard, magic_link, api)")
+    notes = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+    
+    def __str__(self):
+        return f"Order {self.order.order_ref}: {self.previous_status} → {self.new_status}"
+
+
+class BulkOrderOperation(models.Model):
+    """Model to track bulk operations on orders"""
+    OPERATION_TYPES = (
+        ('status_update', 'Status Update'),
+        ('bulk_progress', 'Bulk Progress'),
+        ('export', 'Export Orders'),
+    )
+    
+    operation_type = models.CharField(max_length=20, choices=OPERATION_TYPES)
+    orders_affected = models.ManyToManyField(Orders, related_name='bulk_operations')
+    performed_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    parameters = models.JSONField(help_text="Operation parameters (status, filters, etc.)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    success_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    errors = models.JSONField(default=list, blank=True)
+    
+    def __str__(self):
+        return f"{self.get_operation_type_display()} by {self.performed_by.username} at {self.created_at}"
 
 
 

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Status - {{ order.order_ref }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .status-timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .status-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            z-index: 2;
+        }
+        .status-active {
+            background: #28a745;
+            color: white;
+        }
+        .status-inactive {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+        .status-line {
+            position: absolute;
+            left: 19px;
+            top: 40px;
+            width: 2px;
+            height: calc(100% - 40px);
+            background: #e9ecef;
+            z-index: 1;
+        }
+        .status-line.active {
+            background: #28a745;
+        }
+        .order-card {
+            border: none;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            border-radius: 15px;
+        }
+        .action-btn {
+            margin: 5px;
+            border-radius: 25px;
+            padding: 10px 20px;
+        }
+        .header-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 0;
+            border-radius: 15px 15px 0 0;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card order-card">
+                    <div class="header-section text-center">
+                        <h2><i class="fas fa-box"></i> Order Status</h2>
+                        <h4>{{ order.order_ref }}</h4>
+                        <p class="mb-0">Track your order progress</p>
+                    </div>
+                    
+                    <div class="card-body p-4">
+                        <!-- Order Information -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-info-circle text-primary"></i> Order Details</h5>
+                                <p><strong>Order Date:</strong> {{ order.created_at|date:"M d, Y" }}</p>
+                                <p><strong>Customer:</strong> {{ order.customer.get_name }}</p>
+                                <p><strong>Total Amount:</strong> ₱{{ total_amount|floatformat:2 }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-truck text-success"></i> Delivery Info</h5>
+                                <p><strong>Current Status:</strong> 
+                                    <span class="badge bg-primary">{{ order.status }}</span>
+                                </p>
+                                {% if order.estimated_delivery_date %}
+                                <p><strong>Estimated Delivery:</strong> {{ order.estimated_delivery_date|date:"M d, Y" }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Status Timeline -->
+                        <div class="mb-4">
+                            <h5><i class="fas fa-timeline text-info"></i> Order Progress</h5>
+                            <div class="status-timeline">
+                                {% with statuses="Pending,Processing,Order Confirmed,Out for Delivery,Delivered" %}
+                                {% for status in statuses|split:"," %}
+                                <div class="status-item">
+                                    <div class="status-icon {% if order.status == status or forloop.counter0 < order.status|get_status_index %}status-active{% else %}status-inactive{% endif %}">
+                                        {% if status == "Pending" %}
+                                            <i class="fas fa-clock"></i>
+                                        {% elif status == "Processing" %}
+                                            <i class="fas fa-cog"></i>
+                                        {% elif status == "Order Confirmed" %}
+                                            <i class="fas fa-check"></i>
+                                        {% elif status == "Out for Delivery" %}
+                                            <i class="fas fa-truck"></i>
+                                        {% elif status == "Delivered" %}
+                                            <i class="fas fa-box-open"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1">{{ status }}</h6>
+                                        {% if order.status == status %}
+                                        <small class="text-muted">Current Status</small>
+                                        {% endif %}
+                                    </div>
+                                    {% if not forloop.last %}
+                                    <div class="status-line {% if forloop.counter0 < order.status|get_status_index %}active{% endif %}"></div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                                {% endwith %}
+                            </div>
+                        </div>
+
+                        <!-- Order Items -->
+                        <div class="mb-4">
+                            <h5><i class="fas fa-shopping-bag text-warning"></i> Order Items</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Product</th>
+                                            <th>Size</th>
+                                            <th>Quantity</th>
+                                            <th>Price</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in order_items %}
+                                        <tr>
+                                            <td>{{ item.product.product_name }}</td>
+                                            <td>{{ item.size|default:"N/A" }}</td>
+                                            <td>{{ item.quantity }}</td>
+                                            <td>₱{{ item.price|floatformat:2 }}</td>
+                                            <td>₱{{ item.price|mul:item.quantity|floatformat:2 }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        {% if available_actions %}
+                        <div class="mb-4">
+                            <h5><i class="fas fa-tools text-danger"></i> Available Actions</h5>
+                            <div class="text-center">
+                                {% for action in available_actions %}
+                                <a href="{% url 'magic-link-update' magic_link.token action.action %}" 
+                                   class="btn {{ action.class }} action-btn"
+                                   onclick="return confirm('Are you sure you want to {{ action.label|lower }}?')">
+                                    {{ action.label }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Status History -->
+                        {% if status_logs %}
+                        <div class="mb-4">
+                            <h5><i class="fas fa-history text-secondary"></i> Status History</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>From</th>
+                                            <th>To</th>
+                                            <th>Updated By</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for log in status_logs %}
+                                        <tr>
+                                            <td>{{ log.updated_at|date:"M d, Y H:i" }}</td>
+                                            <td><span class="badge bg-secondary">{{ log.previous_status }}</span></td>
+                                            <td><span class="badge bg-primary">{{ log.new_status }}</span></td>
+                                            <td>{{ log.updated_by }}</td>
+                                            <td>{{ log.notes|default:"—" }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Footer -->
+                        <div class="text-center mt-4">
+                            <p class="text-muted">
+                                <i class="fas fa-shield-alt"></i> 
+                                This is a secure delivery status page. 
+                                Keep this link private.
+                            </p>
+                            <small class="text-muted">
+                                Last updated: {{ order.status_updated_at|date:"M d, Y H:i" }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -2551,3 +2551,557 @@ def ai_designer_view(request):
     AI-powered 2D designer page for creating custom designs
     """
     return render(request, 'ecom/ai_designer.html')
+
+
+# Automated Delivery System Views
+import secrets
+import hashlib
+from datetime import timedelta
+from django.utils import timezone
+from .models import DeliveryMagicLink, DeliveryStatusLog, BulkOrderOperation
+
+@login_required(login_url='adminlogin')
+def quick_progress_order(request, order_id):
+    """Quick one-click order status progression"""
+    try:
+        order = get_object_or_404(Orders, id=order_id)
+        
+        # Define status progression mapping
+        status_progression = {
+            'Pending': 'Processing',
+            'Processing': 'Order Confirmed',
+            'Order Confirmed': 'Out for Delivery',
+            'Out for Delivery': 'Delivered',
+        }
+        
+        current_status = order.status
+        next_status = status_progression.get(current_status)
+        
+        if not next_status:
+            return JsonResponse({
+                'success': False, 
+                'message': f'Cannot progress from {current_status}'
+            })
+        
+        # Log the status change
+        DeliveryStatusLog.objects.create(
+            order=order,
+            previous_status=current_status,
+            new_status=next_status,
+            updated_by=request.user.username,
+            update_method='dashboard',
+            notes=f'Quick progression from {current_status} to {next_status}'
+        )
+        
+        # Update order status
+        order.status = next_status
+        order.status_updated_at = timezone.now()
+        order.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order progressed from {current_status} to {next_status}',
+            'new_status': next_status
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error updating order: {str(e)}'
+        })
+
+@login_required(login_url='adminlogin')
+def bulk_progress_orders(request):
+    """Bulk progress multiple orders to next status"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            order_ids = data.get('order_ids', [])
+            
+            if not order_ids:
+                return JsonResponse({'success': False, 'message': 'No orders selected'})
+            
+            # Create bulk operation record
+            bulk_op = BulkOrderOperation.objects.create(
+                operation_type='bulk_progress',
+                performed_by=request.user,
+                parameters={'order_ids': order_ids}
+            )
+            
+            success_count = 0
+            errors = []
+            
+            status_progression = {
+                'Pending': 'Processing',
+                'Processing': 'Order Confirmed',
+                'Order Confirmed': 'Out for Delivery',
+                'Out for Delivery': 'Delivered',
+            }
+            
+            for order_id in order_ids:
+                try:
+                    order = Orders.objects.get(id=order_id)
+                    current_status = order.status
+                    next_status = status_progression.get(current_status)
+                    
+                    if next_status:
+                        # Log the status change
+                        DeliveryStatusLog.objects.create(
+                            order=order,
+                            previous_status=current_status,
+                            new_status=next_status,
+                            updated_by=request.user.username,
+                            update_method='bulk_progress',
+                            notes=f'Bulk progression from {current_status} to {next_status}'
+                        )
+                        
+                        order.status = next_status
+                        order.status_updated_at = timezone.now()
+                        order.save()
+                        
+                        bulk_op.orders_affected.add(order)
+                        success_count += 1
+                    else:
+                        errors.append(f'Order {order.order_ref}: Cannot progress from {current_status}')
+                        
+                except Orders.DoesNotExist:
+                    errors.append(f'Order ID {order_id} not found')
+                except Exception as e:
+                    errors.append(f'Order ID {order_id}: {str(e)}')
+            
+            # Update bulk operation
+            bulk_op.completed_at = timezone.now()
+            bulk_op.success_count = success_count
+            bulk_op.error_count = len(errors)
+            bulk_op.errors = errors
+            bulk_op.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully progressed {success_count} orders',
+                'errors': errors
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Bulk operation failed: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@login_required(login_url='adminlogin')
+def generate_magic_link(request, order_id):
+    """Generate a magic link for external delivery status updates"""
+    try:
+        order = get_object_or_404(Orders, id=order_id)
+        
+        # Check if magic link already exists
+        try:
+            magic_link = DeliveryMagicLink.objects.get(order=order)
+            if not magic_link.is_expired and magic_link.is_active:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Magic link already exists',
+                    'status_url': request.build_absolute_uri(magic_link.get_status_url()),
+                    'token': magic_link.token
+                })
+        except DeliveryMagicLink.DoesNotExist:
+            pass
+        
+        # Generate new magic link
+        token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(days=30)  # 30 days expiry
+        
+        magic_link = DeliveryMagicLink.objects.create(
+            order=order,
+            token=token,
+            expires_at=expires_at
+        )
+        
+        status_url = request.build_absolute_uri(magic_link.get_status_url())
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Magic link generated successfully',
+            'status_url': status_url,
+            'token': token,
+            'expires_at': expires_at.isoformat()
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error generating magic link: {str(e)}'
+        })
+
+def magic_link_update(request, token, action):
+    """Handle external delivery status updates via magic link"""
+    try:
+        magic_link = get_object_or_404(DeliveryMagicLink, token=token, is_active=True)
+        
+        if magic_link.is_expired:
+            return render(request, 'ecom/magic_link_expired.html', {
+                'order': magic_link.order
+            })
+        
+        order = magic_link.order
+        
+        # Define allowed actions and their corresponding statuses
+        action_mapping = {
+            'confirm': 'Processing',
+            'ship': 'Out for Delivery',
+            'deliver': 'Delivered',
+            'cancel': 'Cancelled'
+        }
+        
+        if action not in action_mapping:
+            return render(request, 'ecom/magic_link_error.html', {
+                'error': 'Invalid action',
+                'order': order
+            })
+        
+        new_status = action_mapping[action]
+        previous_status = order.status
+        
+        # Update order status
+        order.status = new_status
+        order.status_updated_at = timezone.now()
+        order.save()
+        
+        # Log the status change
+        DeliveryStatusLog.objects.create(
+            order=order,
+            previous_status=previous_status,
+            new_status=new_status,
+            updated_by='External (Magic Link)',
+            update_method='magic_link',
+            notes=f'Status updated via magic link action: {action}'
+        )
+        
+        return render(request, 'ecom/magic_link_success.html', {
+            'order': order,
+            'action': action,
+            'previous_status': previous_status,
+            'new_status': new_status
+        })
+        
+    except Exception as e:
+        return render(request, 'ecom/magic_link_error.html', {
+            'error': str(e)
+        })
+
+# New Automated Delivery API Views for Admin Interface
+@csrf_protect
+def initiate_automated_delivery(request, order_id):
+    """Initiate automated delivery process for an order"""
+    # Check authentication for AJAX requests
+    if not request.user.is_authenticated:
+        return JsonResponse({'success': False, 'message': 'Authentication required'}, status=401)
+    
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': 'Unauthorized access'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            order = get_object_or_404(Orders, id=order_id)
+            
+            if order.status != 'Order Confirmed':
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Order must be in "Order Confirmed" status to initiate delivery'
+                })
+            
+            # Update order status to "Out for Delivery"
+            previous_status = order.status
+            order.status = 'Out for Delivery'
+            order.status_updated_at = timezone.now()
+            
+            # Set estimated delivery date (1 day from now)
+            if not order.estimated_delivery_date:
+                order.estimated_delivery_date = timezone.now().date() + timedelta(days=1)
+            
+            order.save()
+            
+            # Log the status change
+            DeliveryStatusLog.objects.create(
+                order=order,
+                previous_status=previous_status,
+                new_status='Out for Delivery',
+                updated_by=request.user.username,
+                update_method='automated_delivery',
+                notes='Automated delivery process initiated'
+            )
+            
+            # Generate tracking number if not exists
+            if not hasattr(order, 'tracking_number') or not order.tracking_number:
+                order.tracking_number = f"TRK{order.id:06d}{timezone.now().strftime('%Y%m%d')}"
+                order.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Automated delivery initiated successfully',
+                'new_status': 'Out for Delivery',
+                'tracking_number': getattr(order, 'tracking_number', None)
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error initiating delivery: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@csrf_protect
+def track_delivery_status(request, order_id):
+    """Get delivery tracking information for an order"""
+    # Check authentication for AJAX requests
+    if not request.user.is_authenticated:
+        return JsonResponse({'success': False, 'message': 'Authentication required'}, status=401)
+    
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': 'Unauthorized access'}, status=403)
+    
+    try:
+        order = get_object_or_404(Orders, id=order_id)
+        
+        if order.status not in ['Out for Delivery', 'Delivered']:
+            return JsonResponse({
+                'success': False,
+                'message': 'Order is not in delivery status'
+            })
+        
+        # Get latest status logs
+        latest_logs = order.status_logs.all()[:5]
+        
+        # Simulate tracking information (in real implementation, this would integrate with delivery service API)
+        tracking_info = {
+            'status': order.status,
+            'current_location': 'Distribution Center',
+            'estimated_delivery': order.estimated_delivery_date.strftime('%Y-%m-%d') if order.estimated_delivery_date else 'TBD',
+            'tracking_number': getattr(order, 'tracking_number', f"TRK{order.id:06d}"),
+            'last_updated': order.status_updated_at.strftime('%Y-%m-%d %H:%M:%S') if order.status_updated_at else 'N/A',
+            'delivery_progress': []
+        }
+        
+        # Add progress steps based on status logs
+        for log in reversed(latest_logs):
+            tracking_info['delivery_progress'].append({
+                'status': log.new_status,
+                'timestamp': log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'notes': log.notes or f'Order status updated to {log.new_status}'
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'tracking_info': tracking_info
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error getting tracking information: {str(e)}'
+        })
+
+@csrf_protect
+def mark_order_delivered(request, order_id):
+    """Mark an order as delivered"""
+    # Check authentication for AJAX requests
+    if not request.user.is_authenticated:
+        return JsonResponse({'success': False, 'message': 'Authentication required'}, status=401)
+    
+    if not request.user.is_staff:
+        return JsonResponse({'success': False, 'message': 'Unauthorized access'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            order = get_object_or_404(Orders, id=order_id)
+            
+            if order.status not in ['Out for Delivery']:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Order must be "Out for Delivery" to mark as delivered'
+                })
+            
+            # Update order status
+            previous_status = order.status
+            order.status = 'Delivered'
+            order.status_updated_at = timezone.now()
+            order.delivered_at = timezone.now()
+            order.save()
+            
+            # Log the status change
+            DeliveryStatusLog.objects.create(
+                order=order,
+                previous_status=previous_status,
+                new_status='Delivered',
+                updated_by=request.user.username,
+                update_method='manual_delivery',
+                notes='Order manually marked as delivered'
+            )
+            
+            # Reduce inventory when order is marked as delivered
+            order_items = order.orderitem_set.all()
+            inventory_updates = []
+            
+            for order_item in order_items:
+                try:
+                    inventory_item = models.InventoryItem.objects.get(product=order_item.product)
+                    if inventory_item.quantity >= order_item.quantity:
+                        inventory_item.quantity -= order_item.quantity
+                        inventory_item.save()
+                        inventory_updates.append(f'{inventory_item.product.name}: -{order_item.quantity}')
+                    else:
+                        return JsonResponse({
+                            'success': False,
+                            'message': f'Insufficient inventory for {inventory_item.product.name}'
+                        })
+                except models.InventoryItem.DoesNotExist:
+                    inventory_updates.append(f'{order_item.product.name}: No inventory item found')
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Order marked as delivered successfully',
+                'inventory_updates': inventory_updates
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error marking order as delivered: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+def delivery_status_page(request, token):
+    """Public delivery status page accessible via magic link"""
+    try:
+        magic_link = get_object_or_404(DeliveryMagicLink, token=token, is_active=True)
+        
+        if magic_link.is_expired:
+            return render(request, 'ecom/magic_link_expired.html', {
+                'order': magic_link.order
+            })
+        
+        order = magic_link.order
+        order_items = order.orderitem_set.all()
+        status_logs = order.status_logs.all()[:10]  # Last 10 status changes
+        
+        # Calculate order totals
+        total_amount = sum(item.price * item.quantity for item in order_items)
+        
+        # Define available actions based on current status
+        available_actions = []
+        if order.status == 'Pending':
+            available_actions = [
+                {'action': 'confirm', 'label': 'Confirm Order', 'class': 'btn-success'}
+            ]
+        elif order.status == 'Processing':
+            available_actions = [
+                {'action': 'ship', 'label': 'Mark as Shipped', 'class': 'btn-primary'}
+            ]
+        elif order.status == 'Out for Delivery':
+            available_actions = [
+                {'action': 'deliver', 'label': 'Mark as Delivered', 'class': 'btn-success'}
+            ]
+        
+        # Add cancel option for non-delivered orders
+        if order.status not in ['Delivered', 'Cancelled']:
+            available_actions.append({
+                'action': 'cancel', 'label': 'Cancel Order', 'class': 'btn-danger'
+            })
+        
+        context = {
+            'order': order,
+            'order_items': order_items,
+            'status_logs': status_logs,
+            'total_amount': total_amount,
+            'magic_link': magic_link,
+            'available_actions': available_actions
+        }
+        
+        return render(request, 'ecom/delivery_status.html', context)
+        
+    except Exception as e:
+        return render(request, 'ecom/magic_link_error.html', {
+            'error': str(e)
+        })
+
+
+@login_required
+def customer_confirm_received(request, order_id):
+    """
+    Handle customer confirmation of order receipt with photo proof
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'})
+    
+    try:
+        # Get the customer
+        customer = models.Customer.objects.get(user_id=request.user.id)
+        
+        # Get the order and verify it belongs to the customer
+        order = models.Orders.objects.get(id=order_id, customer=customer)
+        
+        # Check if order is in 'Delivered' status
+        if order.status != 'Delivered':
+            return JsonResponse({
+                'success': False, 
+                'message': 'Order must be marked as delivered before confirming receipt'
+            })
+        
+        # Check if already confirmed
+        if order.customer_received_at:
+            return JsonResponse({
+                'success': False, 
+                'message': 'Order receipt has already been confirmed'
+            })
+        
+        # Check if photo was uploaded
+        if 'delivery_proof' not in request.FILES:
+            return JsonResponse({
+                'success': False, 
+                'message': 'Delivery proof photo is required'
+            })
+        
+        # Save the delivery proof photo and confirmation timestamp
+        order.delivery_proof_photo = request.FILES['delivery_proof']
+        order.customer_received_at = timezone.now()
+        order.save()
+        
+        # Create a delivery status log entry
+        notes = request.POST.get('notes', '').strip()
+        log_notes = f"Customer confirmed receipt with photo proof."
+        if notes:
+            log_notes += f" Customer notes: {notes}"
+        
+        models.DeliveryStatusLog.objects.create(
+            order=order,
+            previous_status='Delivered',
+            new_status='Delivered',
+            updated_by=request.user,
+            update_method='Customer Confirmation',
+            notes=log_notes
+        )
+        
+        return JsonResponse({
+            'success': True, 
+            'message': 'Order receipt confirmed successfully!'
+        })
+        
+    except models.Customer.DoesNotExist:
+        return JsonResponse({
+            'success': False, 
+            'message': 'Customer not found'
+        })
+    except models.Orders.DoesNotExist:
+        return JsonResponse({
+            'success': False, 
+            'message': 'Order not found or does not belong to you'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False, 
+            'message': f'An error occurred: {str(e)}'
+        })

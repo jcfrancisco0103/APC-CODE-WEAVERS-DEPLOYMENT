@@ -207,9 +207,23 @@
                             </td>
                             {% if status != 'Delivered' and status != 'Cancelled' %}
                             <td class="px-11 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <a href="{% url 'update-order' order.id %}" class="text-green-600 hover:text-green-900" title="Edit Order">
-                                    <i data-lucide="edit" class="h-4 w-4"></i>
-                                </a>
+                                <div class="flex items-center space-x-2">
+                                    <a href="{% url 'update-order' order.id %}" class="text-green-600 hover:text-green-900" title="Edit Order">
+                                        <i data-lucide="edit" class="h-4 w-4"></i>
+                                    </a>
+                                    {% if order.status == 'Order Confirmed' %}
+                                    <button onclick="initiateAutomatedDelivery('{{ order.id }}')" class="text-blue-600 hover:text-blue-900" title="Start Automated Delivery">
+                                        <i data-lucide="truck" class="h-4 w-4"></i>
+                                    </button>
+                                    {% elif order.status == 'Out for Delivery' %}
+                                    <button onclick="trackDelivery('{{ order.id }}')" class="text-purple-600 hover:text-purple-900" title="Track Delivery">
+                                        <i data-lucide="map-pin" class="h-4 w-4"></i>
+                                    </button>
+                                    <button onclick="markAsDelivered('{{ order.id }}')" class="text-green-600 hover:text-green-900" title="Mark as Delivered">
+                                        <i data-lucide="check-circle" class="h-4 w-4"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </td>
                             {% elif status == 'Delivered' %}
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -428,6 +442,85 @@
                 setTimeout(() => alert.remove(), 500);
             });
         }, 5000);
+
+        // Automated Delivery Functions
+        function initiateAutomatedDelivery(orderId) {
+            if (!confirm('Are you sure you want to start automated delivery for this order?')) {
+                return;
+            }
+            
+            fetch(`/api/admin/initiate-delivery/${orderId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Automated delivery initiated successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to initiate delivery'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error initiating delivery');
+            });
+        }
+
+        function trackDelivery(orderId) {
+            fetch(`/api/admin/track-delivery/${orderId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const trackingInfo = data.tracking_info;
+                        let message = `Tracking Information:\n\n`;
+                        message += `Status: ${trackingInfo.status}\n`;
+                        message += `Location: ${trackingInfo.current_location}\n`;
+                        message += `Estimated Delivery: ${trackingInfo.estimated_delivery}\n`;
+                        if (trackingInfo.tracking_number) {
+                            message += `Tracking Number: ${trackingInfo.tracking_number}\n`;
+                        }
+                        alert(message);
+                    } else {
+                        alert('Error: ' + (data.message || 'Failed to get tracking information'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error getting tracking information');
+                });
+        }
+
+        function markAsDelivered(orderId) {
+            if (!confirm('Are you sure you want to mark this order as delivered?')) {
+                return;
+            }
+            
+            fetch(`/api/admin/mark-delivered/${orderId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Order marked as delivered successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to mark as delivered'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error marking order as delivered');
+            });
+        }
     </script>
 
 {% endblock content %}

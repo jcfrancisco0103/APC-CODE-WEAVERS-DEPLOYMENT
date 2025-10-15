@@ -56,6 +56,19 @@ urlpatterns = [
     path('admin-products', views.admin_products_view,name='admin-products'),
     path('admin-add-product', views.admin_add_product_view,name='admin-add-product'),
     path('bulk-update-orders/', bulk_update_orders, name='bulk-update-orders'),
+    
+    # Automated Delivery System URLs
+    path('quick-progress-order/<int:order_id>/', views.quick_progress_order, name='quick-progress-order'),
+    path('bulk-progress-orders/', views.bulk_progress_orders, name='bulk-progress-orders'),
+    path('generate-magic-link/<int:order_id>/', views.generate_magic_link, name='generate-magic-link'),
+    path('delivery/update/<str:token>/<str:action>/', views.magic_link_update, name='magic-link-update'),
+    path('delivery/status/<str:token>/', views.delivery_status_page, name='delivery-status-page'),
+    
+    # Admin Automated Delivery API URLs
+    path('api/admin/initiate-delivery/<int:order_id>/', views.initiate_automated_delivery, name='api-initiate-delivery'),
+    path('api/admin/track-delivery/<int:order_id>/', views.track_delivery_status, name='api-track-delivery'),
+    path('api/admin/mark-delivered/<int:order_id>/', views.mark_order_delivered, name='api-mark-delivered'),
+    
     path('delete-product/<int:pk>', views.delete_product_view,name='delete-product'),
     path('update-product/<int:pk>', views.update_product_view,name='update-product'),
 
@@ -85,6 +98,7 @@ urlpatterns = [
     path('my-profile', views.my_profile_view,name='my-profile'),
     path('edit-profile', views.edit_profile_view,name='edit-profile'),
     path('download-invoice/<int:order_id>/', views.download_invoice_view, name='download-invoice'),
+    path('customer/confirm-received/<int:order_id>/', views.customer_confirm_received, name='customer-confirm-received'),
     path('add-to-cart/<int:pk>/', views.add_to_cart_view,name='add-to-cart'),
     path('cart', views.cart_view,name='cart'),
     path('remove-from-cart/<int:pk>', views.remove_from_cart_view,name='remove-from-cart'),
@@ -176,7 +190,6 @@ urlpatterns = [
 
 ]
 
-# Serve media files during development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

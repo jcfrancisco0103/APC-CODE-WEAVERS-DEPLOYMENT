@@ -597,12 +597,15 @@ def chatbot_widget(request):
     return render(request, 'ecom/chatbot_widget.html')
 
 
-@login_required
 @csrf_protect
 @require_http_methods(["GET"])
 def admin_pending_handovers(request):
     """Get list of chat sessions pending admin handover"""
     try:
+        # Check authentication for AJAX requests
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
         if not request.user.is_staff:
             return JsonResponse({'error': 'Unauthorized'}, status=403)
         
@@ -653,12 +656,15 @@ def admin_pending_handovers(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@login_required
 @csrf_protect
 @require_http_methods(["POST"])
 def admin_take_handover(request):
     """Admin takes over a chat session"""
     try:
+        # Check authentication for AJAX requests
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
         if not request.user.is_staff:
             return JsonResponse({'error': 'Unauthorized'}, status=403)
         
@@ -707,12 +713,15 @@ def admin_take_handover(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@login_required
 @csrf_protect
 @require_http_methods(["POST"])
 def admin_send_message(request):
     """Admin sends a message in a chat session"""
     try:
+        # Check authentication for AJAX requests
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
         if not request.user.is_staff:
             return JsonResponse({'error': 'Unauthorized'}, status=403)
         
@@ -750,12 +759,15 @@ def admin_send_message(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@login_required
 @csrf_protect
 @require_http_methods(["POST"])
 def admin_resolve_handover(request):
     """Mark a handover as resolved"""
     try:
+        # Check authentication for AJAX requests
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=401)
+        
         if not request.user.is_staff:
             return JsonResponse({'error': 'Unauthorized'}, status=403)
         
