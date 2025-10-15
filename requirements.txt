@@ -5,3 +5,4 @@ django-widget-tweaks==1.4.8
 python-decouple==3.4
 django-humanize==0.1.2
 xhtml2pdf==0.2.10
+tzdata==2025.2
