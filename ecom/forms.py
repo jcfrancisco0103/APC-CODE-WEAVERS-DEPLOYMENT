@@ -1,3 +1,4 @@
+import re
 from django import forms
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -16,6 +17,25 @@ class CustomerUserForm(forms.ModelForm):
         widgets = {
             'password': forms.PasswordInput()
         }
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Unable to use this username. Please choose another.")
+        return username
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password')
+        if password:
+            if len(password) < 8:
+                raise forms.ValidationError("Password must be at least 8 characters long.")
+            if not re.search(r'[A-Z]', password):
+                raise forms.ValidationError("Password must include at least one uppercase letter.")
+            if not re.search(r'\d', password):
+                raise forms.ValidationError("Password must include at least one number.")
+            if not re.search(r'[!@#$%*]', password):
+                raise forms.ValidationError("Password must include at least one symbol (e.g., !, @, #, $, %, *).")
+        return password
 
     def clean(self):
         cleaned_data = super().clean()
