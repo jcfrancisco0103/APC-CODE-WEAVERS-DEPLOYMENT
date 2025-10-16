@@ -77,9 +77,15 @@ function _addDebugSphereAtWorld(pos, color = 0xff0000, ttl = 3000) {
   const selectionInstructions = document.getElementById("selection-instructions")
 
 // Position sliders
-// Number position sliders removed; users drag numbers directly
+const frontNumberXSlider = document.getElementById("front-number-x")
+const frontNumberYSlider = document.getElementById("front-number-y")
+const frontNumberZSlider = document.getElementById("front-number-z")
 const backNameXSlider = document.getElementById("back-name-x")
 const backNameYSlider = document.getElementById("back-name-y")
+const backNameZSlider = document.getElementById("back-name-z")
+const backNumberXSlider = document.getElementById("back-number-x")
+const backNumberYSlider = document.getElementById("back-number-y")
+const backNumberZSlider = document.getElementById("back-number-z")
 const logoXSlider = document.getElementById("logo-x")
 const logoYSlider = document.getElementById("logo-y")
 const logoZSlider = document.getElementById("logo-z")
@@ -255,9 +261,8 @@ try { renderer.toneMappingExposure = 1.0 } catch (e) {}
       frontNumberMesh = new THREE.Mesh(geometry, material)
       // Attach to jersey so it moves with it
       jersey.add(frontNumberMesh)
-      // Position relative to jersey
-      // Initial default; user can drag to place anywhere (raised higher)
-      frontNumberMesh.position.set(0.15, 0.55, 0.01)
+      // Position relative to jersey with increased z-offset to prevent bleeding
+      frontNumberMesh.position.set(config.frontNumberPosition.x, config.frontNumberPosition.y, config.frontNumberPosition.z)
       frontNumberMesh.rotation.y = Math.PI // Ensure it faces forward
     }
 
@@ -317,14 +322,8 @@ try { renderer.toneMappingExposure = 1.0 } catch (e) {}
       backNumberMesh = new THREE.Mesh(geometry, material)
       // Attach to jersey so it moves with it
       jersey.add(backNumberMesh)
-      // Position relative to jersey
-      // Initial default; user can drag to place anywhere (raised higher)
-      backNumberMesh.position.set(0, 0.45, -0.01)
-      // Restore dragged world position if available
-      if (config.backNumberWorldPos) {
-        const p = config.backNumberWorldPos
-        backNumberMesh.position.set(p.x, p.y, p.z)
-      }
+      // Position relative to jersey with increased z-offset to prevent bleeding
+      backNumberMesh.position.set(config.backNumberPosition.x, config.backNumberPosition.y, config.backNumberPosition.z)
     }
 
     // Create logo if available using a decal projection onto the mesh surface
@@ -1110,9 +1109,42 @@ try { renderer.toneMappingExposure = 1.0 } catch (e) {}
     }
   })
 
-  // Back number sliders removed; use drag
+  backNumberXSlider.addEventListener("input", function () {
+    config.backNumberPosition.x = Number.parseFloat(this.value) - 0.5
+    if (backNumberMesh) {
+      backNumberMesh.position.x = config.backNumberPosition.x
+    }
+  })
 
-  if (logoXSlider) logoXSlider.addEventListener("input", function () {
+  backNumberYSlider.addEventListener("input", function () {
+    config.backNumberPosition.y = Number.parseFloat(this.value) - 0.5
+    if (backNumberMesh) {
+      backNumberMesh.position.y = config.backNumberPosition.y
+    }
+  })
+
+  frontNumberZSlider.addEventListener("input", function () {
+    config.frontNumberPosition.z = Number.parseFloat(this.value)
+    if (frontNumberMesh) {
+      frontNumberMesh.position.z = config.frontNumberPosition.z
+    }
+  })
+
+  backNameZSlider.addEventListener("input", function () {
+    config.backNamePosition.z = Number.parseFloat(this.value)
+    if (backNameMesh) {
+      backNameMesh.position.z = config.backNamePosition.z
+    }
+  })
+
+  backNumberZSlider.addEventListener("input", function () {
+    config.backNumberPosition.z = Number.parseFloat(this.value)
+    if (backNumberMesh) {
+      backNumberMesh.position.z = config.backNumberPosition.z
+    }
+  })
+
+  logoXSlider.addEventListener("input", function () {
     let newX = Number.parseFloat(this.value)
     // Clamp x to slider min/max from HTML (0.25 to 0.75)
     newX = Math.max(0.25, Math.min(0.75, newX))
@@ -1130,7 +1162,16 @@ try { renderer.toneMappingExposure = 1.0 } catch (e) {}
     createTextElements(); // Recreate decal with new position
   })
 
-  if (resetViewBtn) resetViewBtn.addEventListener("click", () => {
+  logoZSlider.addEventListener("input", function () {
+    let newZ = Number.parseFloat(this.value)
+    // Clamp z to slider min/max from HTML (0.01 to 2.0)
+    newZ = Math.max(0.01, Math.min(2.0, newZ))
+    config.logoPosition.z = newZ
+    this.value = newZ
+    createTextElements(); // Recreate decal with new position
+  })
+
+  resetViewBtn.addEventListener("click", () => {
     camera.position.set(0, 0, 2)
     controls.reset()
   })
@@ -1272,6 +1313,312 @@ try { renderer.toneMappingExposure = 1.0 } catch (e) {}
 
   // Initialize the scene
   initScene()
-  // Enable dragging after scene init
-  enableNumberDrag()
+
+  // Add event listeners after renderer is initialized
+  if (renderer && renderer.domElement) {
+    // Mouse click event for selection mode
+    renderer.domElement.addEventListener('click', onMouseClick, false)
+  }
+
+  // Keyboard event listeners for WASD controls
+  document.addEventListener('keydown', onKeyDown, false)
+
+  // AI Design Generation Function
+  function generateAIDesign(generationType, creativityLevel) {
+    console.log(`Generating AI design: ${generationType} with creativity level ${creativityLevel}`)
+    
+    switch(generationType) {
+      case 'color-scheme':
+        generateSmartColorScheme(creativityLevel)
+        break
+      case 'pattern-match':
+        generatePatternMatch(creativityLevel)
+        break
+      case 'team-style':
+        generateTeamStyle(creativityLevel)
+        break
+      case 'random-design':
+        generateRandomDesign(creativityLevel)
+        break
+    }
+  }
+
+  function generateSmartColorScheme(creativityLevel) {
+    const colorSchemes = [
+      { primary: '#FF6B6B', secondary: '#4ECDC4' }, // Coral & Teal
+      { primary: '#45B7D1', secondary: '#96CEB4' }, // Sky Blue & Mint
+      { primary: '#F7DC6F', secondary: '#BB8FCE' }, // Yellow & Purple
+      { primary: '#58D68D', secondary: '#F8C471' }, // Green & Orange
+      { primary: '#EC7063', secondary: '#85C1E9' }  // Red & Light Blue
+    ]
+    
+    const scheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)]
+    
+    // Apply colors with some randomization based on creativity level
+    if (creativityLevel > 5) {
+      // Higher creativity - more variation
+      const hueShift = (Math.random() - 0.5) * (creativityLevel * 10)
+      scheme.primary = adjustHue(scheme.primary, hueShift)
+      scheme.secondary = adjustHue(scheme.secondary, hueShift)
+    }
+    
+    primaryColorInput.value = scheme.primary
+    secondaryColorInput.value = scheme.secondary
+    config.primaryColor = scheme.primary
+    config.secondaryColor = scheme.secondary
+    
+    applyBodyColor()
+    applySleeveColor()
+  }
+
+  function generatePatternMatch(creativityLevel) {
+    const patterns = ['stripes', 'dots', 'geometric', 'gradient']
+    const randomPattern = patterns[Math.floor(Math.random() * patterns.length)]
+    
+    if (patternSelect) {
+      // Find matching option in select
+      for (let option of patternSelect.options) {
+        if (option.value.toLowerCase().includes(randomPattern)) {
+          patternSelect.value = option.value
+          config.pattern = option.value
+          break
+        }
+      }
+    }
+  }
+
+  function generateTeamStyle(creativityLevel) {
+    // Generate team-like combinations
+    const teamColors = [
+      { primary: '#1E3A8A', secondary: '#FFFFFF' }, // Navy & White
+      { primary: '#DC2626', secondary: '#FBBF24' }, // Red & Gold
+      { primary: '#059669', secondary: '#FFFFFF' }, // Green & White
+      { primary: '#7C2D12', secondary: '#FED7AA' }, // Brown & Cream
+      { primary: '#1F2937', secondary: '#F59E0B' }  // Dark Gray & Orange
+    ]
+    
+    const teamStyle = teamColors[Math.floor(Math.random() * teamColors.length)]
+    
+    primaryColorInput.value = teamStyle.primary
+    secondaryColorInput.value = teamStyle.secondary
+    config.primaryColor = teamStyle.primary
+    config.secondaryColor = teamStyle.secondary
+    
+    // Add team number and name
+    if (creativityLevel > 7) {
+      frontNumberInput.value = Math.floor(Math.random() * 99) + 1
+      backNameInput.value = 'PLAYER'
+      backNumberInput.value = Math.floor(Math.random() * 99) + 1
+      
+      config.frontNumber = frontNumberInput.value
+      config.backName = backNameInput.value
+      config.backNumber = backNumberInput.value
+    }
+    
+    applyBodyColor()
+    applySleeveColor()
+    createTextElements()
+  }
+
+  function generateRandomDesign(creativityLevel) {
+    // Generate completely random design
+    const randomPrimary = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`
+    const randomSecondary = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`
+    
+    primaryColorInput.value = randomPrimary
+    secondaryColorInput.value = randomSecondary
+    config.primaryColor = randomPrimary
+    config.secondaryColor = randomSecondary
+    
+    if (creativityLevel > 5) {
+      frontNumberInput.value = Math.floor(Math.random() * 99) + 1
+      config.frontNumber = frontNumberInput.value
+    }
+    
+    if (creativityLevel > 7) {
+      const names = ['ACE', 'STAR', 'PRO', 'HERO', 'CHAMP']
+      backNameInput.value = names[Math.floor(Math.random() * names.length)]
+      backNumberInput.value = Math.floor(Math.random() * 99) + 1
+      
+      config.backName = backNameInput.value
+      config.backNumber = backNumberInput.value
+    }
+    
+    applyBodyColor()
+    applySleeveColor()
+    createTextElements()
+  }
+
+  function adjustHue(hexColor, hueShift) {
+    // Convert hex to HSL, adjust hue, convert back
+    const r = parseInt(hexColor.slice(1, 3), 16) / 255
+    const g = parseInt(hexColor.slice(3, 5), 16) / 255
+    const b = parseInt(hexColor.slice(5, 7), 16) / 255
+    
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    let h, s, l = (max + min) / 2
+    
+    if (max === min) {
+      h = s = 0
+    } else {
+      const d = max - min
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break
+        case g: h = (b - r) / d + 2; break
+        case b: h = (r - g) / d + 4; break
+      }
+      h /= 6
+    }
+    
+    h = (h + hueShift / 360) % 1
+    if (h < 0) h += 1
+    
+    // Convert back to RGB
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1
+      if (t > 1) t -= 1
+      if (t < 1/6) return p + (q - p) * 6 * t
+      if (t < 1/2) return q
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+      return p
+    }
+    
+    let newR, newG, newB
+    if (s === 0) {
+      newR = newG = newB = l
+    } else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+      const p = 2 * l - q
+      newR = hue2rgb(p, q, h + 1/3)
+      newG = hue2rgb(p, q, h)
+      newB = hue2rgb(p, q, h - 1/3)
+    }
+    
+    return `#${Math.round(newR * 255).toString(16).padStart(2, '0')}${Math.round(newG * 255).toString(16).padStart(2, '0')}${Math.round(newB * 255).toString(16).padStart(2, '0')}`
+  }
+
+  // Selection Mode Functions
+  function onMouseClick(event) {
+    if (!selectionMode) return
+    
+    // Calculate mouse position in normalized device coordinates
+    const rect = renderer.domElement.getBoundingClientRect()
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+    
+    // Update the picking ray with the camera and mouse position
+    raycaster.setFromCamera(mouse, camera)
+    
+    // Calculate objects intersecting the picking ray
+    const selectableObjects = []
+    if (frontNumberMesh && frontNumberMesh.visible) selectableObjects.push(frontNumberMesh)
+    if (backNameMesh && backNameMesh.visible) selectableObjects.push(backNameMesh)
+    if (backNumberMesh && backNumberMesh.visible) selectableObjects.push(backNumberMesh)
+    
+    const intersects = raycaster.intersectObjects(selectableObjects)
+    
+    if (intersects.length > 0) {
+      // Select the clicked element
+      selectedElement = intersects[0].object
+      highlightSelectedElement()
+    } else {
+      // Deselect if clicking on empty space
+      selectedElement = null
+      clearElementSelection()
+    }
+  }
+
+  function onKeyDown(event) {
+    if (!selectionMode || !selectedElement) return
+    
+    const moveDistance = 0.02
+    let moved = false
+    
+    switch(event.code) {
+      case 'KeyW':
+        selectedElement.position.y += moveDistance
+        moved = true
+        break
+      case 'KeyS':
+        selectedElement.position.y -= moveDistance
+        moved = true
+        break
+      case 'KeyA':
+        selectedElement.position.x -= moveDistance
+        moved = true
+        break
+      case 'KeyD':
+        selectedElement.position.x += moveDistance
+        moved = true
+        break
+    }
+    
+    if (moved) {
+      event.preventDefault()
+      updateConfigFromElementPosition()
+    }
+  }
+
+  function highlightSelectedElement() {
+    // Clear previous highlights
+    clearElementSelection()
+    
+    if (selectedElement) {
+      // Add green outline material
+      const outlineMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        side: THREE.BackSide,
+        transparent: true,
+        opacity: 0.3
+      })
+      
+      // Create outline mesh
+      const outlineGeometry = selectedElement.geometry.clone()
+      const outlineMesh = new THREE.Mesh(outlineGeometry, outlineMaterial)
+      outlineMesh.position.copy(selectedElement.position)
+      outlineMesh.scale.multiplyScalar(1.1)
+      outlineMesh.name = 'selection-outline'
+      
+      scene.add(outlineMesh)
+    }
+  }
+
+  function clearElementSelection() {
+    // Remove selection outline
+    const outline = scene.getObjectByName('selection-outline')
+    if (outline) {
+      scene.remove(outline)
+    }
+  }
+
+  function updateConfigFromElementPosition() {
+    if (!selectedElement) return
+    
+    // Update config based on which element is selected
+    if (selectedElement === frontNumberMesh) {
+      config.frontNumberPosition.x = selectedElement.position.x
+      config.frontNumberPosition.y = selectedElement.position.y
+      config.frontNumberPosition.z = selectedElement.position.z
+    } else if (selectedElement === backNameMesh) {
+      config.backNamePosition.x = selectedElement.position.x
+      config.backNamePosition.y = selectedElement.position.y
+      config.backNamePosition.z = selectedElement.position.z
+    } else if (selectedElement === backNumberMesh) {
+      config.backNumberPosition.x = selectedElement.position.x
+      config.backNumberPosition.y = selectedElement.position.y
+      config.backNumberPosition.z = selectedElement.position.z
+    } else if (selectedElement === logoMesh || selectedElement === decalMesh) {
+      // For logo/decal, we need to convert world position back to relative position
+      // This is a simplified approach - in practice, you might need more complex conversion
+      config.logoPosition.z = selectedElement.position.z
+    }
+  }
 })
+
+// Selection mode variables
+let selectionMode = false
+let selectedElement = null
+let raycaster = new THREE.Raycaster()
+let mouse = new THREE.Vector2()
