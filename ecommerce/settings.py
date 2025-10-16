@@ -141,6 +141,9 @@ LOGIN_REDIRECT_URL='/afterlogin'
 # Add LOGIN_URL to fix redirect to login page URL
 LOGIN_URL = '/customerlogin'
 
+# Logout redirect URL
+LOGOUT_REDIRECT_URL = '/customerlogin'
+
 #for contact us give your gmail id and password
 EMAIL_BACKEND ='django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'

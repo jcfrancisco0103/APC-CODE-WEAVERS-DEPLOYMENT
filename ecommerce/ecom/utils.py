@@ -63,25 +63,6 @@ def get_region_name(region_code):
         
     # Check cache first
     cache_key = f"region_{region_code}"
-    cached_name = cache.get(cache_key)
-    if cached_name:
-        return cached_name
-    
-    try:
-        # Try API first
-        base_url = getattr(settings, 'PSGC_API_BASE_URL', 'https://psgc.gitlab.io/api')
-        url = f"{base_url}/regions/{region_code}"
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        
-        name = None
-        if isinstance(data, dict) and 'name' in data:
-            name = data['name']
-        elif isinstance(data, list) and len(data) > 0 and 'name' in data[0]:
-            name = data[0]['name']
-            
-        if name:
             cache.set(cache_key, name, 3600)  # Cache for 1 hour
             return name
     except Exception as e:

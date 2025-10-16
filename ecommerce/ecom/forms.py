@@ -4,7 +4,8 @@ from django.utils import timezone
 from django.contrib.auth.forms import AuthenticationForm
 from . import models
 from .models import Product, InventoryItem
-
+import re
+from django.core.exceptions import ValidationError
 
 # User registration form
 class CustomerUserForm(forms.ModelForm):
@@ -16,12 +17,30 @@ class CustomerUserForm(forms.ModelForm):
         widgets = {
             'password': forms.PasswordInput()
         }
-        # Override default unique error for username
-        error_messages = {
-            'username': {
-                'unique': 'Unable to use this username. Please choose another.',
-            }
-        }
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Unable to use this username. Please choose another.")
+        return username
+
+def validate_password_strength(value):
+    """
+    Validates password strength with the following rules:
+    - At least 8 characters long
+    - Include at least one uppercase letter
+    - Include at least one number
+    - Include at least one symbol (e.g. !, @, #, $, %)
+    """
+    if len(value) < 8:
+        raise ValidationError("Password must be at least 8 characters long.")
+    if not re.search(r'[A-Z]', value):
+        raise ValidationError("Password must include at least one uppercase letter.")
+    if not re.search(r'[0-9]', value):
+        raise ValidationError("Password must include at least one number.")
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', value):
+        raise ValidationError("Password must include at least one symbol (e.g. !, @, #, $, %).")
+
 
     def clean(self):
         cleaned_data = super().clean()
@@ -32,15 +51,7 @@ class CustomerUserForm(forms.ModelForm):
 
         # Password strength validation
         if password:
-            import re
-            if len(password) < 8:
-                raise forms.ValidationError("Password must be at least 8 characters long.")
-            if not re.search(r'[A-Z]', password):
-                raise forms.ValidationError("Password must include at least one uppercase letter.")
-            if not re.search(r'[0-9]', password):
-                raise forms.ValidationError("Password must include at least one number.")
-            if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-                raise forms.ValidationError("Password must include at least one symbol (e.g. !, @, #, $, %).")
+            validate_password_strength(password)
 
 
 # Customer personal details form
