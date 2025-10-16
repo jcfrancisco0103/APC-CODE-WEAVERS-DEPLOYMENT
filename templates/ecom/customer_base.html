@@ -79,6 +79,10 @@ body {
   cursor: pointer;
 }
 
+.cart-button:active {
+  opacity: 0.7;
+}
+
 .cart-svg {
     display: inline-block;
     width: 16px;
@@ -392,7 +396,7 @@ body {
             </a>
             <a class="dropdown-item" href="{% url 'to-ship-orders' %}">
               <div class="item-left">
-                <i class="fa fa-ship"></i>
+                <i class="fa fa-box"></i>
                 <span>To Ship</span>
               </div>
               {% if to_ship_count %}<span class="status-badge shipping">{{ to_ship_count }}</span>{% endif %}
@@ -421,7 +425,7 @@ body {
           </div>
         </li>
                 <li class="upper-links"><a class="links" href="/wishlist">Wishlist</a></li>
-                <li class="upper-links"><a class="links" href="/jersey-customizer/advanced">2D Designer</a></li>
+                <li class="upper-links"><a class="links" href="/jersey-customizer/advanced">3D Designer</a></li>
                 <li class="upper-links"><a class="links" href="/about">About Us</a></li>
                 <li class="upper-links"><a class="links" href="/my-profile">Profile</a></li>
                 <li class="upper-links">
@@ -470,7 +474,7 @@ body {
 <br><br><br>
 <footer>
   <br>
-
+  
   <p>
     <a href="{% url 'facebook' %}" target="_blank" class="fa fa-facebook"></a>
     <a href="{% url 'instagram' %}" target="_blank" class="fa fa-instagram"></a>
@@ -480,7 +484,7 @@ body {
   <div class="container">
     <div class="row">
       <div class="col-md-12 col-sm-12">
-        <div style="color:#ffffff;" class="wow fadeInUp footer-copyright">
+        <div style="color:#ffffff; text-align:center" class="wow fadeInUp footer-copyright">
             &copy; 2025 WorksTeamWear PH</p>
         </div>
       </div>
