@@ -538,7 +538,7 @@
                       <option value="" disabled selected>Select Region</option>
                     </select>
                   </div>
-                  <div class="form-group">
+                  <div class="form-group" id="province-group">
                     <label for="province">Province</label>
                     <select name="province" id="province" class="form-control" required>
                       <option value="" disabled selected>Select Province</option>
@@ -754,18 +754,42 @@
         }
  
         function checkEnable() {
-          var allSelected = regionSelect.value && province.value && citymun.value && barangay.value;
-          var mappedRegion = getMappedRegionCode();
-          submitBtn.disabled = !(termsCheckbox.checked && allSelected && mappedRegion);
-        }
+                  var mappedRegion = getMappedRegionCode();
+                  var allSelected;
+                  
+                  // For NCR, province is not required
+                  if (mappedRegion === 'NCR') {
+                    allSelected = regionSelect.value && citymun.value && barangay.value;
+                  } else {
+                    allSelected = regionSelect.value && province.value && citymun.value && barangay.value;
+                  }
+                  
+                  submitBtn.disabled = !(termsCheckbox.checked && allSelected && mappedRegion);
+                }
  
         if (regionSelect) {
-          regionSelect.addEventListener('change', function() {
-            let mapped = getMappedRegionCode();
-            this.setAttribute('data-django-code', mapped);
-            checkEnable();
-          });
-        }
+                  regionSelect.addEventListener('change', function() {
+                    let mapped = getMappedRegionCode();
+                    this.setAttribute('data-django-code', mapped);
+                    
+                    // Hide/show province field based on region selection
+                    const provinceGroup = document.getElementById('province-group');
+                    const provinceSelect = document.getElementById('province');
+                    
+                    if (mapped === 'NCR') {
+                      // Hide province field for NCR
+                      provinceGroup.style.display = 'none';
+                      provinceSelect.removeAttribute('required');
+                      provinceSelect.value = 'NCR'; // Set a default value
+                    } else {
+                      // Show province field for other regions
+                      provinceGroup.style.display = 'block';
+                      provinceSelect.setAttribute('required', 'required');
+                    }
+                    
+                    checkEnable();
+                  });
+                }
         [province, citymun, barangay, termsCheckbox].forEach(function(sel) {
           if (sel) sel.addEventListener('change', checkEnable);
         });
@@ -783,10 +807,16 @@
         }
         if (form && regionSelect) {
           form.addEventListener('submit', function(e) {
-            let mapped = getMappedRegionCode();
-            if (mapped) {
-              hiddenRegionInput.value = mapped;
-            } else {
+                  let mapped = getMappedRegionCode();
+                  if (mapped) {
+                    hiddenRegionInput.value = mapped;
+                    
+                    // For NCR, ensure province is set to 'NCR' in the form data
+                    if (mapped === 'NCR') {
+                      const provinceSelect = document.getElementById('province');
+                      provinceSelect.value = 'NCR';
+                    }
+                  } else {
               e.preventDefault();
               alert('Invalid region selected. Please select a valid region.');
             }

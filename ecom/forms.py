@@ -73,7 +73,15 @@ class CustomerForm(forms.ModelForm):
             else:
                 self.fields[field].choices = []
             self.fields[field].widget = forms.Select()
-            self.fields[field].required = True
+            # Province is not required for NCR
+            if field == 'province':
+                region_value = self.data.get('region', None) or self.initial.get('region', None)
+                if region_value == 'NCR':
+                    self.fields[field].required = False
+                else:
+                    self.fields[field].required = True
+            else:
+                self.fields[field].required = True
 
     class Meta:
         model = models.Customer
@@ -83,6 +91,21 @@ class CustomerForm(forms.ModelForm):
             'province': forms.Select(choices=[]),
             'barangay': forms.Select(choices=[]),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        region = cleaned_data.get('region')
+        province = cleaned_data.get('province')
+        
+        # For NCR, set province to 'NCR' if not provided
+        if region == 'NCR':
+            if not province:
+                cleaned_data['province'] = 'NCR'
+        elif not province:
+            # For non-NCR regions, province is required
+            self.add_error('province', 'Province is required for this region.')
+        
+        return cleaned_data
 
 
 # Extended signup form with privacy agreement
