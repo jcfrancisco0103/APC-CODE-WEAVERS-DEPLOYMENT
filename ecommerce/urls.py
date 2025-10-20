@@ -109,6 +109,7 @@ urlpatterns = [
     path('payment-success/', views.payment_success_view,name='payment-success'),
     path('customizer/', views.jersey_customizer, name='customizer'),
     path('jersey-customizer/advanced/', views.jersey_customizer_advanced_view, name='jersey-customizer-advanced'),
+    path('jersey-customizer/new/', views.jersey_customizer_new_view, name='jersey-customizer-new'),
 
     path('home', views.home,name='home'),
     # Removed the view_customer URL pattern as view_customer_view no longer exists

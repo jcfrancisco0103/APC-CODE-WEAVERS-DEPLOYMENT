@@ -28,6 +28,7 @@ let bodyMaterial, sleeveMaterial
 let frontNumberMesh, backNameMesh, backNumberMesh, logoMesh
 let decalMesh = null
 let gridHelper
+let primaryLight, rimLight // Global light references for dynamic lighting
 // track painted original materials so we can restore them
 const paintedMaterials = new Map()
 // Toggle to visualize debug markers and logs in the scene. Enable from browser console: window.DEBUG = true
@@ -45,6 +46,19 @@ function _addDebugSphereAtWorld(pos, color = 0xff0000, ttl = 3000) {
 
   // DOM elements
   const canvasContainer = document.getElementById("canvas-container")
+  
+  // Validate canvas container exists
+  if (!canvasContainer) {
+    console.error('Canvas container not found! Make sure the element with id "canvas-container" exists in the DOM.')
+    return
+  }
+  
+  // Validate Three.js is loaded
+  if (typeof THREE === 'undefined') {
+    console.error('Three.js library not loaded! Make sure Three.js is included before this script.')
+    return
+  }
+  
   const jerseyTypeSelect = document.getElementById("jersey-type")
   const frontViewBtn = document.getElementById("front-view")
   const backViewBtn = document.getElementById("back-view")
@@ -92,6 +106,17 @@ const logoZSlider = document.getElementById("logo-z")
 
   // Initialize Three.js scene
   function initScene() {
+    console.log('Initializing Three.js scene...')
+    
+    // Validate canvas container dimensions
+    if (canvasContainer.clientWidth === 0 || canvasContainer.clientHeight === 0) {
+      console.warn('Canvas container has zero dimensions. Retrying in 100ms...')
+      setTimeout(initScene, 100)
+      return
+    }
+    
+    console.log(`Canvas container dimensions: ${canvasContainer.clientWidth}x${canvasContainer.clientHeight}`)
+    
     // Create scene
     scene = new THREE.Scene()
     scene.background = new THREE.Color(0x1a202c)
@@ -105,48 +130,80 @@ const logoZSlider = document.getElementById("logo-z")
       antialias: true, 
       preserveDrawingBuffer: true,
       alpha: true,
-      powerPreference: "high-performance"
+      powerPreference: "high-performance",
+      logarithmicDepthBuffer: true
     })
     renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    
     // Enhanced color space and tone mapping for realistic visuals
     try { 
-      renderer.outputEncoding = THREE.sRGBEncoding 
+      renderer.outputColorSpace = THREE.SRGBColorSpace
       renderer.toneMapping = THREE.ACESFilmicToneMapping
-      renderer.toneMappingExposure = 1.2
+      renderer.toneMappingExposure = 1.0
       renderer.shadowMap.enabled = true
       renderer.shadowMap.type = THREE.PCFSoftShadowMap
+      renderer.shadowMap.autoUpdate = true
       renderer.physicallyCorrectLights = true
-    } catch (e) {}
+      renderer.gammaFactor = 2.2
+      console.log('Enhanced renderer settings applied successfully')
+    } catch (e) {
+      // Fallback for older Three.js versions
+      renderer.outputEncoding = THREE.sRGBEncoding
+      console.warn('Using fallback renderer settings for older Three.js version')
+    }
     canvasContainer.appendChild(renderer.domElement)
+    console.log('Renderer added to canvas container')
 
-    // Enhanced lighting setup for realistic visuals
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6)
+    // Enhanced lighting setup for realistic visuals with HDR-like environment
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.4)
     scene.add(ambientLight)
 
-    // Primary directional light with shadows
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2)
-    directionalLight.position.set(5, 10, 5)
-    directionalLight.castShadow = true
-    directionalLight.shadow.mapSize.width = 2048
-    directionalLight.shadow.mapSize.height = 2048
-    directionalLight.shadow.camera.near = 0.5
-    directionalLight.shadow.camera.far = 50
-    directionalLight.shadow.camera.left = -10
-    directionalLight.shadow.camera.right = 10
-    directionalLight.shadow.camera.top = 10
-    directionalLight.shadow.camera.bottom = -10
-    scene.add(directionalLight)
+    // Primary directional light with enhanced shadows
+    primaryLight = new THREE.DirectionalLight(0xffffff, 1.5)
+    primaryLight.position.set(8, 12, 6)
+    primaryLight.castShadow = true
+    primaryLight.shadow.mapSize.width = 4096
+    primaryLight.shadow.mapSize.height = 4096
+    primaryLight.shadow.camera.near = 0.1
+    primaryLight.shadow.camera.far = 100
+    primaryLight.shadow.camera.left = -15
+    primaryLight.shadow.camera.right = 15
+    primaryLight.shadow.camera.top = 15
+    primaryLight.shadow.camera.bottom = -15
+    primaryLight.shadow.bias = -0.0001
+    primaryLight.shadow.normalBias = 0.02
+    scene.add(primaryLight)
     
     // Secondary fill light for better illumination
-    const fillLight = new THREE.DirectionalLight(0x87CEEB, 0.4)
-    fillLight.position.set(-5, 5, -5)
+    const fillLight = new THREE.DirectionalLight(0x87CEEB, 0.6)
+    fillLight.position.set(-8, 8, -6)
+    fillLight.castShadow = true
+    fillLight.shadow.mapSize.width = 2048
+    fillLight.shadow.mapSize.height = 2048
     scene.add(fillLight)
     
-    // Rim light for enhanced depth
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.3)
-    rimLight.position.set(0, -5, -10)
+    // Rim light for enhanced depth and edge definition
+    rimLight = new THREE.DirectionalLight(0xffffff, 0.4)
+    rimLight.position.set(0, -8, -12)
     scene.add(rimLight)
+    
+    // Add hemisphere light for natural sky lighting
+    const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x362d1d, 0.3)
+    hemisphereLight.position.set(0, 20, 0)
+    scene.add(hemisphereLight)
+    
+    // Add point lights for accent lighting
+    const pointLight1 = new THREE.PointLight(0xffffff, 0.5, 30)
+    pointLight1.position.set(10, 10, 10)
+    pointLight1.castShadow = true
+    pointLight1.shadow.mapSize.width = 1024
+    pointLight1.shadow.mapSize.height = 1024
+    scene.add(pointLight1)
+    
+    const pointLight2 = new THREE.PointLight(0x87CEEB, 0.3, 25)
+    pointLight2.position.set(-10, 5, -10)
+    scene.add(pointLight2)
 
     // Add grid helper
     gridHelper = new THREE.GridHelper(10, 10, 0x888888, 0x444444)
@@ -178,6 +235,12 @@ const logoZSlider = document.getElementById("logo-z")
     const loader = new THREE.GLTFLoader()
     const modelPath = "/static/jersey_customizer/models/t_shirt.gltf"
 
+    // Validate loader exists
+    if (!loader) {
+      console.error('GLTFLoader not available! Make sure GLTFLoader.js is included.')
+      return
+    }
+
     // Remove existing jersey if any
     if (jersey) {
       scene.remove(jersey)
@@ -195,7 +258,10 @@ const logoZSlider = document.getElementById("logo-z")
       logoMesh = null
     }
 
+    console.log('Loading 3D jersey model from:', modelPath)
+
     loader.load(modelPath, (gltf) => {
+      console.log('Jersey model loaded successfully')
       jersey = gltf.scene
 
       // Position the jersey in the center of the viewport
@@ -221,6 +287,8 @@ const logoZSlider = document.getElementById("logo-z")
         }
       });
 
+      console.log(`Found ${bodyMeshes.length} body meshes and ${sleeveMeshes.length} sleeve meshes`)
+
       // Apply initial colors
       applyBodyColor();
       applySleeveColor();
@@ -245,6 +313,8 @@ const logoZSlider = document.getElementById("logo-z")
     // onError callback
     (error) => {
       console.error('An error happened while loading the model:', error)
+      console.error('Model path attempted:', modelPath)
+      console.error('Please check if the model file exists and is accessible')
     })
   }
 
@@ -950,10 +1020,32 @@ const logoZSlider = document.getElementById("logo-z")
     renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight)
   }
 
-  // Animation loop
+  // Enhanced animation loop with performance optimizations
   function animate() {
     requestAnimationFrame(animate)
+    
+    // Update controls
     controls.update()
+    
+    // Update lighting based on camera position for better visual quality
+    if (primaryLight && camera) {
+      // Make the primary light follow the camera for consistent lighting
+      const cameraDirection = new THREE.Vector3()
+      camera.getWorldDirection(cameraDirection)
+      primaryLight.position.copy(camera.position).add(cameraDirection.multiplyScalar(-5))
+      primaryLight.target.position.copy(jersey ? jersey.position : new THREE.Vector3(0, 0, 0))
+      primaryLight.target.updateMatrixWorld()
+    }
+    
+    // Update rim light for better edge definition
+    if (rimLight && camera) {
+      const rimPosition = camera.position.clone()
+      rimPosition.y += 2
+      rimPosition.normalize().multiplyScalar(8)
+      rimLight.position.copy(rimPosition)
+    }
+    
+    // Render the scene
     renderer.render(scene, camera)
   }
 
@@ -1285,24 +1377,68 @@ const logoZSlider = document.getElementById("logo-z")
 
   // Pattern application functions
   function applyStripesPattern() {
-    // Create striped texture
+    // Create high-resolution striped texture with multiple variations
     const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 256
+    canvas.width = 512
+    canvas.height = 512
     const ctx = canvas.getContext('2d')
     
-    // Draw stripes
+    // Enhanced stripe patterns
+    const stripeType = config.stripeType || 'horizontal' // horizontal, vertical, diagonal, chevron
+    const stripeWidth = config.stripeWidth || 32
+    const stripeSpacing = config.stripeSpacing || 16
+    
+    // Base color
     ctx.fillStyle = config.primaryColor
-    ctx.fillRect(0, 0, 256, 256)
+    ctx.fillRect(0, 0, 512, 512)
+    
+    // Apply stripe pattern based on type
     ctx.fillStyle = config.secondaryColor
-    for (let i = 0; i < 256; i += 32) {
-      ctx.fillRect(0, i, 256, 16)
+    
+    switch(stripeType) {
+      case 'vertical':
+        for (let x = 0; x < 512; x += stripeWidth + stripeSpacing) {
+          ctx.fillRect(x, 0, stripeWidth, 512)
+        }
+        break
+      case 'diagonal':
+        ctx.save()
+        ctx.translate(256, 256)
+        ctx.rotate(Math.PI / 4)
+        ctx.translate(-256, -256)
+        for (let x = -512; x < 1024; x += stripeWidth + stripeSpacing) {
+          ctx.fillRect(x, -512, stripeWidth, 1024)
+        }
+        ctx.restore()
+        break
+      case 'chevron':
+        // Create chevron pattern
+        for (let y = 0; y < 512; y += stripeWidth * 2) {
+          ctx.beginPath()
+          ctx.moveTo(0, y)
+          ctx.lineTo(256, y + stripeWidth)
+          ctx.lineTo(512, y)
+          ctx.lineTo(512, y + stripeWidth)
+          ctx.lineTo(256, y + stripeWidth * 2)
+          ctx.lineTo(0, y + stripeWidth)
+          ctx.closePath()
+          ctx.fill()
+        }
+        break
+      case 'horizontal':
+      default:
+        for (let y = 0; y < 512; y += stripeWidth + stripeSpacing) {
+          ctx.fillRect(0, y, 512, stripeWidth)
+        }
+        break
     }
     
     const texture = new THREE.CanvasTexture(canvas)
     texture.wrapS = THREE.RepeatWrapping
     texture.wrapT = THREE.RepeatWrapping
     texture.repeat.set(2, 2)
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
     
     applyPatternTexture(texture)
   }
@@ -1443,6 +1579,244 @@ const logoZSlider = document.getElementById("logo-z")
     
     // Convert back to hex
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  }
+
+  // Helper function to convert hex to RGB
+  function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : {r: 0, g: 0, b: 0}
+  }
+
+  // Advanced texture patterns
+  function applyFabricPattern() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')
+    
+    // Create fabric-like texture
+    ctx.fillStyle = config.primaryColor
+    ctx.fillRect(0, 0, 512, 512)
+    
+    // Add fabric weave pattern
+    ctx.strokeStyle = config.secondaryColor
+    ctx.lineWidth = 1
+    
+    // Horizontal threads
+    for (let y = 0; y < 512; y += 4) {
+      ctx.globalAlpha = 0.3 + Math.random() * 0.4
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(512, y)
+      ctx.stroke()
+    }
+    
+    // Vertical threads
+    for (let x = 0; x < 512; x += 4) {
+      ctx.globalAlpha = 0.3 + Math.random() * 0.4
+      ctx.beginPath()
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, 512)
+      ctx.stroke()
+    }
+    
+    ctx.globalAlpha = 1
+    
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    texture.repeat.set(3, 3)
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    
+    applyPatternTexture(texture)
+  }
+
+  function applyCarbonFiberPattern() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')
+    
+    // Create carbon fiber texture
+    ctx.fillStyle = '#1a1a1a'
+    ctx.fillRect(0, 0, 512, 512)
+    
+    // Carbon fiber weave
+    const fiberWidth = 8
+    const fiberSpacing = 16
+    
+    // Horizontal fibers
+    ctx.fillStyle = '#333333'
+    for (let y = 0; y < 512; y += fiberSpacing) {
+      ctx.fillRect(0, y, 512, fiberWidth)
+    }
+    
+    // Vertical fibers with offset
+    ctx.fillStyle = '#2a2a2a'
+    for (let x = fiberSpacing / 2; x < 512; x += fiberSpacing) {
+      ctx.fillRect(x, 0, fiberWidth, 512)
+    }
+    
+    // Add subtle highlights
+    ctx.fillStyle = '#444444'
+    for (let y = 0; y < 512; y += fiberSpacing * 2) {
+      for (let x = 0; x < 512; x += fiberSpacing * 2) {
+        ctx.fillRect(x, y, fiberWidth / 2, fiberWidth / 2)
+      }
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    texture.repeat.set(4, 4)
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    
+    applyPatternTexture(texture)
+  }
+
+  function applyMeshPattern() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')
+    
+    // Create mesh/net pattern
+    ctx.fillStyle = config.primaryColor
+    ctx.fillRect(0, 0, 512, 512)
+    
+    ctx.strokeStyle = config.secondaryColor
+    ctx.lineWidth = 2
+    
+    const meshSize = 32
+    
+    // Draw mesh grid
+    for (let x = 0; x <= 512; x += meshSize) {
+      ctx.beginPath()
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, 512)
+      ctx.stroke()
+    }
+    
+    for (let y = 0; y <= 512; y += meshSize) {
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(512, y)
+      ctx.stroke()
+    }
+    
+    // Add mesh intersections
+    ctx.fillStyle = config.secondaryColor
+    for (let x = 0; x <= 512; x += meshSize) {
+      for (let y = 0; y <= 512; y += meshSize) {
+        ctx.beginPath()
+        ctx.arc(x, y, 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    texture.repeat.set(2, 2)
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    
+    applyPatternTexture(texture)
+  }
+
+  function applyNoisePattern() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')
+    
+    // Create noise texture
+    const imageData = ctx.createImageData(512, 512)
+    const data = imageData.data
+    
+    const primaryRGB = hexToRgb(config.primaryColor)
+    const secondaryRGB = hexToRgb(config.secondaryColor)
+    
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = Math.random()
+      const factor = noise > 0.5 ? 1 : 0
+      
+      data[i] = primaryRGB.r + (secondaryRGB.r - primaryRGB.r) * factor
+      data[i + 1] = primaryRGB.g + (secondaryRGB.g - primaryRGB.g) * factor
+      data[i + 2] = primaryRGB.b + (secondaryRGB.b - primaryRGB.b) * factor
+      data[i + 3] = 255
+    }
+    
+    ctx.putImageData(imageData, 0, 0)
+    
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    texture.repeat.set(1, 1)
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    
+    applyPatternTexture(texture)
+  }
+
+  function applyHexagonPattern() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 512
+    const ctx = canvas.getContext('2d')
+    
+    // Create hexagon pattern
+    ctx.fillStyle = config.primaryColor
+    ctx.fillRect(0, 0, 512, 512)
+    
+    ctx.strokeStyle = config.secondaryColor
+    ctx.fillStyle = config.secondaryColor
+    ctx.lineWidth = 2
+    
+    const hexSize = 24
+    const hexHeight = hexSize * Math.sqrt(3)
+    
+    for (let row = 0; row < 512 / hexHeight + 2; row++) {
+      for (let col = 0; col < 512 / (hexSize * 1.5) + 2; col++) {
+        const x = col * hexSize * 1.5
+        const y = row * hexHeight + (col % 2) * hexHeight / 2
+        
+        if (x < 512 + hexSize && y < 512 + hexSize) {
+          drawHexagon(ctx, x, y, hexSize)
+        }
+      }
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    texture.repeat.set(2, 2)
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    
+    applyPatternTexture(texture)
+  }
+
+  function drawHexagon(ctx, x, y, size) {
+    ctx.beginPath()
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * Math.PI) / 3
+      const hx = x + size * Math.cos(angle)
+      const hy = y + size * Math.sin(angle)
+      if (i === 0) {
+        ctx.moveTo(hx, hy)
+      } else {
+        ctx.lineTo(hx, hy)
+      }
+    }
+    ctx.closePath()
+    ctx.stroke()
   }
 
   function applyPatternTexture(texture) {
@@ -1730,18 +2104,36 @@ const logoZSlider = document.getElementById("logo-z")
         // If material is already a standard material, just update its color
         if (mesh.material && mesh.material.isMeshStandardMaterial) {
           mesh.material.color.set(config.primaryColor)
+          mesh.material.roughness = 0.6
+          mesh.material.metalness = 0.05
+          mesh.material.envMapIntensity = 0.8
+          mesh.material.clearcoat = 0.1
+          mesh.material.clearcoatRoughness = 0.3
+          // Add environment map if available
+          if (window.envMap) {
+            mesh.material.envMap = window.envMap
+          }
           mesh.material.needsUpdate = true
         } else {
           // preserve any existing map if present
           const existingMap = (mesh.material && mesh.material.map) ? mesh.material.map : null
-          // Enhanced material with realistic properties
+          // Enhanced material with realistic fabric properties
           const mat = new THREE.MeshStandardMaterial({ 
             color: config.primaryColor,
-            roughness: 0.7,
-            metalness: 0.1,
-            envMapIntensity: 0.5,
-            normalScale: new THREE.Vector2(0.5, 0.5)
+            roughness: 0.6,
+            metalness: 0.05,
+            envMapIntensity: 0.8,
+            normalScale: new THREE.Vector2(0.8, 0.8),
+            clearcoat: 0.1,
+            clearcoatRoughness: 0.3,
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide
           })
+          // Add environment map if available
+          if (window.envMap) {
+            mat.envMap = window.envMap
+          }
           if (existingMap) mat.map = existingMap
           mesh.material = mat
         }
@@ -1764,15 +2156,23 @@ const logoZSlider = document.getElementById("logo-z")
         if (config.jerseyType !== "sleeveless") {
           // Always assign a fresh material so sleeves do not share body material
           const existingMap = (mesh.material && mesh.material.map) ? mesh.material.map : null
-          // Enhanced sleeve material with realistic properties
+          // Enhanced sleeve material with realistic fabric properties
           const newMat = new THREE.MeshStandardMaterial({ 
             color: config.secondaryColor, 
             side: THREE.DoubleSide,
-            roughness: 0.7,
-            metalness: 0.1,
-            envMapIntensity: 0.5,
-            normalScale: new THREE.Vector2(0.5, 0.5)
+            roughness: 0.6,
+            metalness: 0.05,
+            envMapIntensity: 0.8,
+            normalScale: new THREE.Vector2(0.8, 0.8),
+            clearcoat: 0.1,
+            clearcoatRoughness: 0.3,
+            transparent: false,
+            opacity: 1.0
           })
+          // Add environment map if available
+          if (window.envMap) {
+            newMat.envMap = window.envMap
+          }
           if (existingMap) newMat.map = existingMap
           mesh.material = newMat
         }
@@ -1792,7 +2192,7 @@ const logoZSlider = document.getElementById("logo-z")
   // Keyboard event listeners for WASD controls
   document.addEventListener('keydown', onKeyDown, false)
 
-  // AI Design Generation Function
+  // Enhanced AI Design Generation Functions
   function generateAIDesign(generationType, creativityLevel) {
     console.log(`Generating AI design: ${generationType} with creativity level ${creativityLevel}`)
     
@@ -1809,13 +2209,330 @@ const logoZSlider = document.getElementById("logo-z")
       case 'random-design':
         generateRandomDesign(creativityLevel)
         break
+      case 'seasonal-theme':
+        generateSeasonalTheme(creativityLevel)
+        break
+      case 'sport-specific':
+        generateSportSpecificDesign(creativityLevel)
+        break
+      case 'brand-inspired':
+        generateBrandInspiredDesign(creativityLevel)
+        break
     }
   }
 
   function generateSmartColorScheme(creativityLevel) {
     const colorSchemes = [
-      { primary: '#FF6B6B', secondary: '#4ECDC4' }, // Coral & Teal
-      { primary: '#45B7D1', secondary: '#96CEB4' }, // Sky Blue & Mint
+      { primary: '#FF6B6B', secondary: '#4ECDC4', name: 'Coral & Teal' },
+      { primary: '#45B7D1', secondary: '#96CEB4', name: 'Sky Blue & Mint' },
+      { primary: '#F7DC6F', secondary: '#BB8FCE', name: 'Golden & Lavender' },
+      { primary: '#58D68D', secondary: '#F1948A', name: 'Emerald & Salmon' },
+      { primary: '#5DADE2', secondary: '#F8C471', name: 'Ocean & Sunset' },
+      { primary: '#AF7AC5', secondary: '#82E0AA', name: 'Purple & Green' },
+      { primary: '#EC7063', secondary: '#5499C7', name: 'Crimson & Steel' },
+      { primary: '#F4D03F', secondary: '#85C1E9', name: 'Sunshine & Sky' },
+      { primary: '#48C9B0', secondary: '#F1948A', name: 'Turquoise & Coral' },
+      { primary: '#CD6155', secondary: '#7FB3D3', name: 'Burgundy & Powder' }
+    ]
+    
+    // Advanced color harmony algorithms
+    const harmonyTypes = ['complementary', 'triadic', 'analogous', 'split-complementary']
+    const selectedHarmony = harmonyTypes[Math.floor(Math.random() * harmonyTypes.length)]
+    
+    let selectedScheme
+    if (creativityLevel > 0.7) {
+      // High creativity: Generate completely new color combinations
+      selectedScheme = generateHarmoniousColors(selectedHarmony)
+    } else if (creativityLevel > 0.4) {
+      // Medium creativity: Modify existing schemes
+      const baseScheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)]
+      selectedScheme = {
+        primary: adjustHue(baseScheme.primary, (Math.random() - 0.5) * 60),
+        secondary: adjustHue(baseScheme.secondary, (Math.random() - 0.5) * 60),
+        name: `Modified ${baseScheme.name}`
+      }
+    } else {
+      // Low creativity: Use predefined schemes
+      selectedScheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)]
+    }
+    
+    // Apply the generated color scheme
+    config.primaryColor = selectedScheme.primary
+    config.secondaryColor = selectedScheme.secondary
+    
+    // Update UI elements with null checks
+    const primaryColorInput = document.getElementById('primary-color')
+    const secondaryColorInput = document.getElementById('secondary-color')
+    
+    if (primaryColorInput) primaryColorInput.value = selectedScheme.primary
+    if (secondaryColorInput) secondaryColorInput.value = selectedScheme.secondary
+    
+    // Apply colors and show notification
+    applyBodyColor()
+    applySleeveColor()
+    showAINotification(`Applied ${selectedScheme.name} color scheme using ${selectedHarmony} harmony`)
+  }
+
+  function generateHarmoniousColors(harmonyType) {
+    const baseHue = Math.random() * 360
+    let primaryHue, secondaryHue
+    
+    switch(harmonyType) {
+      case 'complementary':
+        primaryHue = baseHue
+        secondaryHue = (baseHue + 180) % 360
+        break
+      case 'triadic':
+        primaryHue = baseHue
+        secondaryHue = (baseHue + 120) % 360
+        break
+      case 'analogous':
+        primaryHue = baseHue
+        secondaryHue = (baseHue + 30) % 360
+        break
+      case 'split-complementary':
+        primaryHue = baseHue
+        secondaryHue = (baseHue + 150) % 360
+        break
+    }
+    
+    return {
+      primary: `hsl(${primaryHue}, 70%, 55%)`,
+      secondary: `hsl(${secondaryHue}, 70%, 55%)`,
+      name: `AI Generated ${harmonyType.charAt(0).toUpperCase() + harmonyType.slice(1)}`
+    }
+  }
+
+  function generateSeasonalTheme(creativityLevel) {
+    const seasons = {
+      spring: { 
+        colors: [{ primary: '#98FB98', secondary: '#FFB6C1' }, { primary: '#87CEEB', secondary: '#F0E68C' }],
+        patterns: ['dots', 'fabric'],
+        name: 'Spring Bloom'
+      },
+      summer: { 
+        colors: [{ primary: '#FF6347', secondary: '#40E0D0' }, { primary: '#FFD700', secondary: '#FF69B4' }],
+        patterns: ['stripes', 'mesh'],
+        name: 'Summer Vibes'
+      },
+      autumn: { 
+        colors: [{ primary: '#D2691E', secondary: '#8B4513' }, { primary: '#CD853F', secondary: '#A0522D' }],
+        patterns: ['geometric', 'hexagon'],
+        name: 'Autumn Leaves'
+      },
+      winter: { 
+        colors: [{ primary: '#4682B4', secondary: '#B0C4DE' }, { primary: '#2F4F4F', secondary: '#708090' }],
+        patterns: ['gradient', 'carbon-fiber'],
+        name: 'Winter Frost'
+      }
+    }
+    
+    const currentMonth = new Date().getMonth()
+    let season
+    if (currentMonth >= 2 && currentMonth <= 4) season = 'spring'
+    else if (currentMonth >= 5 && currentMonth <= 7) season = 'summer'
+    else if (currentMonth >= 8 && currentMonth <= 10) season = 'autumn'
+    else season = 'winter'
+    
+    const seasonData = seasons[season]
+    const selectedColor = seasonData.colors[Math.floor(Math.random() * seasonData.colors.length)]
+    const selectedPattern = seasonData.patterns[Math.floor(Math.random() * seasonData.patterns.length)]
+    
+    // Apply seasonal theme
+    config.primaryColor = selectedColor.primary
+    config.secondaryColor = selectedColor.secondary
+    config.pattern = selectedPattern
+    
+    // Update UI with null checks
+    const primaryColorInput = document.getElementById('primary-color')
+    const secondaryColorInput = document.getElementById('secondary-color')
+    const patternSelect = document.getElementById('pattern-select')
+    
+    if (primaryColorInput) primaryColorInput.value = selectedColor.primary
+    if (secondaryColorInput) secondaryColorInput.value = selectedColor.secondary
+    if (patternSelect) patternSelect.value = selectedPattern
+    
+    applyBodyColor()
+    applySleeveColor()
+    applyPattern()
+    
+    showAINotification(`Applied ${seasonData.name} seasonal theme with ${selectedPattern} pattern`)
+  }
+
+  function generateSportSpecificDesign(creativityLevel) {
+    const sportDesigns = {
+      soccer: {
+        colors: [{ primary: '#228B22', secondary: '#FFFFFF' }, { primary: '#FF4500', secondary: '#000000' }],
+        patterns: ['stripes', 'gradient'],
+        name: 'Soccer Classic'
+      },
+      basketball: {
+        colors: [{ primary: '#FF8C00', secondary: '#000080' }, { primary: '#DC143C', secondary: '#FFFFFF' }],
+        patterns: ['mesh', 'geometric'],
+        name: 'Basketball Pro'
+      },
+      american_football: {
+        colors: [{ primary: '#800080', secondary: '#FFD700' }, { primary: '#008000', secondary: '#FFFFFF' }],
+        patterns: ['stripes', 'hexagon'],
+        name: 'Football Power'
+      },
+      baseball: {
+        colors: [{ primary: '#000080', secondary: '#FFFFFF' }, { primary: '#8B0000', secondary: '#C0C0C0' }],
+        patterns: ['dots', 'fabric'],
+        name: 'Baseball Heritage'
+      }
+    }
+    
+    const sports = Object.keys(sportDesigns)
+    const selectedSport = sports[Math.floor(Math.random() * sports.length)]
+    const sportData = sportDesigns[selectedSport]
+    
+    const selectedColor = sportData.colors[Math.floor(Math.random() * sportData.colors.length)]
+    const selectedPattern = sportData.patterns[Math.floor(Math.random() * sportData.patterns.length)]
+    
+    // Apply sport-specific design
+    config.primaryColor = selectedColor.primary
+    config.secondaryColor = selectedColor.secondary
+    config.pattern = selectedPattern
+    
+    // Update UI with null checks
+    const primaryColorInput = document.getElementById('primary-color')
+    const secondaryColorInput = document.getElementById('secondary-color')
+    const patternSelect = document.getElementById('pattern-select')
+    
+    if (primaryColorInput) primaryColorInput.value = selectedColor.primary
+    if (secondaryColorInput) secondaryColorInput.value = selectedColor.secondary
+    if (patternSelect) patternSelect.value = selectedPattern
+    
+    applyBodyColor()
+    applySleeveColor()
+    applyPattern()
+    
+    showAINotification(`Applied ${sportData.name} design for ${selectedSport.replace('_', ' ')}`)
+  }
+
+  function generateBrandInspiredDesign(creativityLevel) {
+    const brandStyles = {
+      tech: {
+        colors: [{ primary: '#007ACC', secondary: '#E5E5E5' }, { primary: '#000000', secondary: '#FF6B35' }],
+        patterns: ['carbon-fiber', 'mesh'],
+        name: 'Tech Innovation'
+      },
+      luxury: {
+        colors: [{ primary: '#FFD700', secondary: '#000000' }, { primary: '#8B4513', secondary: '#F5F5DC' }],
+        patterns: ['gradient', 'fabric'],
+        name: 'Luxury Elite'
+      },
+      streetwear: {
+        colors: [{ primary: '#FF1493', secondary: '#00FFFF' }, { primary: '#32CD32', secondary: '#FF4500' }],
+        patterns: ['noise', 'hexagon'],
+        name: 'Street Style'
+      },
+      minimalist: {
+        colors: [{ primary: '#FFFFFF', secondary: '#000000' }, { primary: '#F5F5F5', secondary: '#333333' }],
+        patterns: ['dots', 'geometric'],
+        name: 'Minimalist Clean'
+      }
+    }
+    
+    const brands = Object.keys(brandStyles)
+    const selectedBrand = brands[Math.floor(Math.random() * brands.length)]
+    const brandData = brandStyles[selectedBrand]
+    
+    const selectedColor = brandData.colors[Math.floor(Math.random() * brandData.colors.length)]
+    const selectedPattern = brandData.patterns[Math.floor(Math.random() * brandData.patterns.length)]
+    
+    // Apply brand-inspired design
+    config.primaryColor = selectedColor.primary
+    config.secondaryColor = selectedColor.secondary
+    config.pattern = selectedPattern
+    
+    // Update UI with null checks
+    const primaryColorInput = document.getElementById('primary-color')
+    const secondaryColorInput = document.getElementById('secondary-color')
+    const patternSelect = document.getElementById('pattern-select')
+    
+    if (primaryColorInput) primaryColorInput.value = selectedColor.primary
+    if (secondaryColorInput) secondaryColorInput.value = selectedColor.secondary
+    if (patternSelect) patternSelect.value = selectedPattern
+    
+    applyBodyColor()
+    applySleeveColor()
+    applyPattern()
+    
+    showAINotification(`Applied ${brandData.name} brand-inspired design`)
+  }
+
+  function adjustHue(color, adjustment) {
+    // Convert hex to HSL, adjust hue, convert back to hex
+    const hex = color.replace('#', '')
+    const r = parseInt(hex.substr(0, 2), 16) / 255
+    const g = parseInt(hex.substr(2, 2), 16) / 255
+    const b = parseInt(hex.substr(4, 2), 16) / 255
+    
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+    let h, s, l = (max + min) / 2
+    
+    if (max === min) {
+      h = s = 0
+    } else {
+      const d = max - min
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break
+        case g: h = (b - r) / d + 2; break
+        case b: h = (r - g) / d + 4; break
+      }
+      h /= 6
+    }
+    
+    // Adjust hue
+    h = (h * 360 + adjustment) % 360
+    if (h < 0) h += 360
+    
+    return `hsl(${h}, ${s * 100}%, ${l * 100}%)`
+  }
+
+  function showAINotification(message) {
+    // Create or update AI notification
+    let notification = document.getElementById('ai-notification')
+    if (!notification) {
+      notification = document.createElement('div')
+      notification.id = 'ai-notification'
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        z-index: 1000;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        max-width: 300px;
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+      `
+      document.body.appendChild(notification)
+    }
+    
+    notification.textContent = `🤖 AI Designer: ${message}`
+    notification.style.opacity = '1'
+    notification.style.transform = 'translateX(0)'
+    
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+      notification.style.opacity = '0'
+      notification.style.transform = 'translateX(100%)'
+    }, 4000)
+  }
+
+  function generateColorScheme(creativityLevel) {
+    const colorSchemes = [
       { primary: '#F7DC6F', secondary: '#BB8FCE' }, // Yellow & Purple
       { primary: '#58D68D', secondary: '#F8C471' }, // Green & Orange
       { primary: '#EC7063', secondary: '#85C1E9' }  // Red & Light Blue
@@ -2150,6 +2867,93 @@ const logoZSlider = document.getElementById("logo-z")
   }
 
   // Initialize color presets and professional schemes
+  // Initialize event listeners for new UI elements
+  function initializeNewUIElements() {
+    // Pattern options toggle
+    const patternSelect = document.getElementById('pattern')
+    const patternOptions = document.getElementById('pattern-options')
+    const stripeOptions = document.getElementById('stripe-options')
+    const gradientOptions = document.getElementById('gradient-options')
+    
+    if (patternSelect) {
+      patternSelect.addEventListener('change', function() {
+        const selectedPattern = this.value
+        
+        // Show/hide pattern options
+        if (selectedPattern !== 'none') {
+          patternOptions.style.display = 'block'
+        } else {
+          patternOptions.style.display = 'none'
+        }
+        
+        // Show specific pattern options
+        stripeOptions.style.display = selectedPattern === 'stripes' ? 'block' : 'none'
+        gradientOptions.style.display = selectedPattern === 'gradient' ? 'block' : 'none'
+        
+        // Update config and apply pattern
+        config.pattern = selectedPattern
+        applyPattern()
+      })
+    }
+    
+    // Stripe type change
+    const stripeTypeSelect = document.getElementById('stripe-type')
+    if (stripeTypeSelect) {
+      stripeTypeSelect.addEventListener('change', function() {
+        config.stripeType = this.value
+        if (config.pattern === 'stripes') {
+          applyPattern()
+        }
+      })
+    }
+    
+    // Gradient type and direction changes
+    const gradientTypeSelect = document.getElementById('gradient-type')
+    const gradientDirectionSelect = document.getElementById('gradient-direction')
+    
+    if (gradientTypeSelect) {
+      gradientTypeSelect.addEventListener('change', function() {
+        config.gradientType = this.value
+        if (config.pattern === 'gradient') {
+          applyPattern()
+        }
+      })
+    }
+    
+    if (gradientDirectionSelect) {
+      gradientDirectionSelect.addEventListener('change', function() {
+        config.gradientDirection = this.value
+        if (config.pattern === 'gradient') {
+          applyPattern()
+        }
+      })
+    }
+    
+    // AI features toggle
+    const aiEnabledCheckbox = document.getElementById('ai-enabled')
+    const aiControls = document.getElementById('ai-controls')
+    
+    if (aiEnabledCheckbox && aiControls) {
+      aiEnabledCheckbox.addEventListener('change', function() {
+        aiControls.style.display = this.checked ? 'block' : 'none'
+      })
+    }
+    
+    // AI generation button
+    const generateAiDesignBtn = document.getElementById('generate-ai-design')
+    if (generateAiDesignBtn) {
+      generateAiDesignBtn.addEventListener('click', function() {
+        const generationType = document.getElementById('ai-generation-type')?.value || 'color-scheme'
+        const creativityLevel = parseInt(document.getElementById('ai-creativity')?.value || 5)
+        
+        generateAIDesign(generationType, creativityLevel)
+      })
+    }
+  }
+
+  // Initialize new UI elements
+  initializeNewUIElements()
+
   initializeColorPresets()
   initializeProfessionalSchemes()
 })
@@ -2479,3 +3283,229 @@ let selectionMode = false
 let selectedElement = null
 let raycaster = new THREE.Raycaster()
 let mouse = new THREE.Vector2()
+
+// Drawing tools variables
+let drawingMode = false
+let drawingCanvas = null
+let drawingContext = null
+let isDrawing = false
+let currentTool = 'brush'
+let brushSize = 5
+let drawingColor = '#000000'
+let lastX = 0
+let lastY = 0
+
+// Initialize drawing tools
+function initializeDrawingTools() {
+  // Create drawing canvas overlay
+  drawingCanvas = document.createElement('canvas')
+  drawingCanvas.id = 'drawing-canvas-overlay'
+  drawingCanvas.className = 'drawing-canvas-overlay'
+  drawingCanvas.width = 1024
+  drawingCanvas.height = 1024
+  drawingCanvas.style.position = 'absolute'
+  drawingCanvas.style.top = '0'
+  drawingCanvas.style.left = '0'
+  drawingCanvas.style.width = '100%'
+  drawingCanvas.style.height = '100%'
+  drawingCanvas.style.pointerEvents = 'none'
+  drawingCanvas.style.zIndex = '10'
+  drawingCanvas.style.display = 'none'
+  
+  drawingContext = drawingCanvas.getContext('2d')
+  drawingContext.lineCap = 'round'
+  drawingContext.lineJoin = 'round'
+  
+  // Add canvas to viewport
+  const viewport = document.getElementById('viewport')
+  if (viewport) {
+    viewport.appendChild(drawingCanvas)
+  }
+  
+  // Add event listeners for drawing
+  drawingCanvas.addEventListener('mousedown', startDrawing)
+  drawingCanvas.addEventListener('mousemove', draw)
+  drawingCanvas.addEventListener('mouseup', stopDrawing)
+  drawingCanvas.addEventListener('mouseout', stopDrawing)
+  
+  // Touch events for mobile
+  drawingCanvas.addEventListener('touchstart', handleTouch)
+  drawingCanvas.addEventListener('touchmove', handleTouch)
+  drawingCanvas.addEventListener('touchend', stopDrawing)
+}
+
+function startDrawing(e) {
+  if (!drawingMode) return
+  
+  isDrawing = true
+  const rect = drawingCanvas.getBoundingClientRect()
+  const scaleX = drawingCanvas.width / rect.width
+  const scaleY = drawingCanvas.height / rect.height
+  
+  lastX = (e.clientX - rect.left) * scaleX
+  lastY = (e.clientY - rect.top) * scaleY
+  
+  drawingContext.beginPath()
+  drawingContext.moveTo(lastX, lastY)
+}
+
+function draw(e) {
+  if (!isDrawing || !drawingMode) return
+  
+  const rect = drawingCanvas.getBoundingClientRect()
+  const scaleX = drawingCanvas.width / rect.width
+  const scaleY = drawingCanvas.height / rect.height
+  
+  const currentX = (e.clientX - rect.left) * scaleX
+  const currentY = (e.clientY - rect.top) * scaleY
+  
+  drawingContext.globalCompositeOperation = currentTool === 'eraser' ? 'destination-out' : 'source-over'
+  drawingContext.strokeStyle = currentTool === 'eraser' ? 'rgba(0,0,0,1)' : drawingColor
+  drawingContext.lineWidth = brushSize
+  
+  if (currentTool === 'brush' || currentTool === 'pen' || currentTool === 'eraser') {
+    drawingContext.lineTo(currentX, currentY)
+    drawingContext.stroke()
+    drawingContext.beginPath()
+    drawingContext.moveTo(currentX, currentY)
+  } else if (currentTool === 'line') {
+    redrawCanvas()
+    drawingContext.beginPath()
+    drawingContext.moveTo(lastX, lastY)
+    drawingContext.lineTo(currentX, currentY)
+    drawingContext.stroke()
+  } else if (currentTool === 'circle') {
+    redrawCanvas()
+    const radius = Math.sqrt(Math.pow(currentX - lastX, 2) + Math.pow(currentY - lastY, 2))
+    drawingContext.beginPath()
+    drawingContext.arc(lastX, lastY, radius, 0, 2 * Math.PI)
+    drawingContext.stroke()
+  } else if (currentTool === 'rectangle') {
+    redrawCanvas()
+    drawingContext.beginPath()
+    drawingContext.rect(lastX, lastY, currentX - lastX, currentY - lastY)
+    drawingContext.stroke()
+  }
+}
+
+function stopDrawing() {
+  if (!isDrawing) return
+  isDrawing = false
+  drawingContext.beginPath()
+  
+  // Apply drawing to 3D model
+  if (drawingMode) {
+    applyDrawingToModel()
+  }
+}
+
+function handleTouch(e) {
+  e.preventDefault()
+  const touch = e.touches[0]
+  const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 
+                                   e.type === 'touchmove' ? 'mousemove' : 'mouseup', {
+    clientX: touch.clientX,
+    clientY: touch.clientY
+  })
+  drawingCanvas.dispatchEvent(mouseEvent)
+}
+
+function redrawCanvas() {
+  // This function would redraw the canvas for shape tools
+  // For now, we'll keep it simple
+}
+
+function applyDrawingToModel() {
+  if (!drawingCanvas || !jerseyMesh) return
+  
+  // Create texture from drawing canvas
+  const texture = new THREE.CanvasTexture(drawingCanvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.minFilter = THREE.LinearFilter
+  texture.magFilter = THREE.LinearFilter
+  
+  // Apply to jersey mesh
+  if (jerseyMesh.material) {
+    if (jerseyMesh.material.map) {
+      jerseyMesh.material.map.dispose()
+    }
+    jerseyMesh.material.map = texture
+    jerseyMesh.material.needsUpdate = true
+  }
+}
+
+function clearDrawing() {
+  if (drawingContext) {
+    drawingContext.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height)
+    applyDrawingToModel()
+  }
+}
+
+function saveDrawing() {
+  if (drawingCanvas) {
+    const link = document.createElement('a')
+    link.download = 'jersey-drawing.png'
+    link.href = drawingCanvas.toDataURL()
+    link.click()
+  }
+}
+
+// Initialize drawing event listeners
+function initializeDrawingEventListeners() {
+  // Drawing mode toggle
+  const drawingModeCheckbox = document.getElementById('drawing-mode')
+  if (drawingModeCheckbox) {
+    drawingModeCheckbox.addEventListener('change', (e) => {
+      drawingMode = e.target.checked
+      if (drawingCanvas) {
+        drawingCanvas.style.display = drawingMode ? 'block' : 'none'
+        drawingCanvas.style.pointerEvents = drawingMode ? 'auto' : 'none'
+      }
+    })
+  }
+  
+  // Drawing tools
+  const drawingTools = document.querySelectorAll('.drawing-tool-btn')
+  drawingTools.forEach(tool => {
+    tool.addEventListener('click', (e) => {
+      currentTool = e.target.dataset.tool
+      drawingTools.forEach(t => t.classList.remove('active'))
+      e.target.classList.add('active')
+    })
+  })
+  
+  // Brush size
+  const brushSizeSlider = document.getElementById('brush-size')
+  if (brushSizeSlider) {
+    brushSizeSlider.addEventListener('input', (e) => {
+      brushSize = parseInt(e.target.value)
+    })
+  }
+  
+  // Drawing color
+  const drawingColorPicker = document.getElementById('drawing-color')
+  if (drawingColorPicker) {
+    drawingColorPicker.addEventListener('change', (e) => {
+      drawingColor = e.target.value
+    })
+  }
+  
+  // Clear drawing
+  const clearDrawingBtn = document.getElementById('clear-drawing')
+  if (clearDrawingBtn) {
+    clearDrawingBtn.addEventListener('click', clearDrawing)
+  }
+  
+  // Save drawing
+  const saveDrawingBtn = document.getElementById('save-drawing')
+  if (saveDrawingBtn) {
+    saveDrawingBtn.addEventListener('click', saveDrawing)
+  }
+}
+
+// Initialize all drawing functionality
+document.addEventListener('DOMContentLoaded', () => {
+  initializeDrawingTools()
+  initializeDrawingEventListeners()
+})
