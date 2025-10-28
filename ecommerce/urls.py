@@ -78,6 +78,8 @@ urlpatterns = [
     path('admin-view-shipping-orders', views.admin_view_shipping_orders, name='admin-view-shipping-orders'),
     path('admin-view-delivered-orders', views.admin_view_delivered_orders, name='admin-view-delivered-orders'),
     path('admin-view-cancelled-orders', views.admin_view_cancelled_orders, name='admin-view-cancelled-orders'),
+    path('admin-view-pre-orders', views.admin_view_pre_orders, name='admin-view-pre-orders'),
+    path('admin/orders/<int:order_id>/detail/', views.admin_order_detail_ajax, name='admin-order-detail-ajax'),
     path('delete-order/<int:pk>', views.delete_order_view,name='delete-order'),
     path('update-order/<int:pk>', views.update_order_view,name='update-order'),
 
@@ -102,12 +104,14 @@ urlpatterns = [
     path('add-to-cart/<int:pk>/', views.add_to_cart_view,name='add-to-cart'),
     path('cart', views.cart_view,name='cart'),
     path('remove-from-cart/<int:pk>', views.remove_from_cart_view,name='remove-from-cart'),
+    path('remove-custom-item/<int:pk>/', views.remove_custom_item_view, name='remove-custom-item'),
     path('customer-address', views.customer_address_view,name='customer-address'),
     path('payment-success/', views.payment_success_view,name='payment-success'),
     path('customizer/', views.jersey_customizer, name='customizer'),
-    path('jersey-customizer/advanced/', views.jersey_customizer_advanced_view, name='jersey-customizer-advanced'),
+    path('react-tshirt-designer/', views.react_tshirt_designer, name='react_tshirt_designer'),
+    path('jersey-designer/', views.react_tshirt_designer, name='jersey-designer'),
+    path('jersey-customizer/new/', views.jersey_customizer_new_view, name='jersey-customizer-new'),
 
-    path('pre-order', views.pre_order, name='pre_order'),
     path('home', views.home,name='home'),
     # Removed the view_customer URL pattern as view_customer_view no longer exists
     # path('view_customer', views.view_customer_view, name='view_customer'),
@@ -117,7 +121,7 @@ urlpatterns = [
     path('instagram/', RedirectView.as_view(url='https://www.instagram.com/worksteamwear/'), name='instagram'),
     path('create/', views.create, name='create'),
     path('jersey-customizer/3d/', views.jersey_customizer_3d_view, name='jersey_customizer_3d'),
-    path('jersey-customizer/advanced/', views.jersey_customizer_advanced_view, name='jersey_customizer_advanced'),
+    path('jersey-designer/', views.react_tshirt_designer, name='jersey_designer'),
     path('jersey-customizer/', views.jersey_customizer, name='jersey_customizer'),
     path('jersey-template/', views.jersey_template, name='jersey_template'),
     path('interactive-jersey/', views.interactive_jersey, name='interactive_jersey'),
@@ -132,20 +136,7 @@ urlpatterns = [
     path('update-address/', views.update_address, name='update-address'),
     path('admin-manage-inventory/', admin_manage_inventory_view, name='admin-manage-inventory'),
 
-    # PSGC address APIs for cascade
-    path('api/regions/', api_views.get_regions, name='api-regions'),
-    path('api/provinces/', api_views.get_provinces, name='api-provinces'),
-    path('api/cities/', api_views.get_cities, name='api-cities'),
-    path('api/barangays/', api_views.get_barangays, name='api-barangays'),
 
-    # PSGC API proxy endpoints
-    path('api/regions/', api_views.get_regions, name='api-regions'),
-    path('api/provinces/', api_views.get_provinces, name='api-provinces'),
-    path('api/cities/', api_views.get_cities, name='api-cities'),
-    path('api/barangays/', api_views.get_barangays, name='api-barangays'),
-    
-    # AI Design Generation API
-    path('api/generate-ai-design/', api_views.generate_ai_design, name='api-generate-ai-design'),
     path('save-address/', views.save_new_address, name='save-address'),
     path('get-saved-addresses/', views.get_saved_addresses, name='get-saved-addresses'),
     path('set-default-address/<int:address_id>/', views.set_default_address, name='set-default-address'),
@@ -177,6 +168,7 @@ urlpatterns = [
     path('api/admin/take-handover/', chatbot_views.admin_take_handover, name='admin-take-handover'),
     path('api/admin/send-message/', chatbot_views.admin_send_message, name='admin-send-message'),
     path('api/admin/resolve-handover/', chatbot_views.admin_resolve_handover, name='admin-resolve-handover'),
+    path('api/admin/clear-all-chats/', chatbot_views.admin_clear_all_chats, name='admin-clear-all-chats'),
     
     # Customer Support Chat URLs
     path('api/support/start-session/', chatbot_views.support_start_session, name='support-start-session'),
@@ -185,11 +177,13 @@ urlpatterns = [
     path('api/support/new-messages/', chatbot_views.support_new_messages, name='support-new-messages'),
     path('api/support/request-new-agent/', chatbot_views.support_request_new_agent, name='support-request-new-agent'),
     
-    # AI Designer
-    path('ai-designer/', views.ai_designer_view, name='ai-designer'),
-
     # Admin Transactions
     path('admin-transactions/', views.admin_transactions_view, name='admin-transactions'),
+
+    # Custom Jersey Order API
+    path('api/add-custom-order/', views.add_custom_order, name='api-add-custom-order'),
+    path('api/save-tshirt-design/', views.save_tshirt_design, name='save_tshirt_design'),
+    path('api/add-custom-tshirt-to-cart/', views.add_custom_tshirt_to_cart, name='add_custom_tshirt_to_cart'),
 
 ]
 
