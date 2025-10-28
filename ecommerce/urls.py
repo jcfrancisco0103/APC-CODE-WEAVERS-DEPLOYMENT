@@ -108,6 +108,7 @@ urlpatterns = [
     path('customer-address', views.customer_address_view,name='customer-address'),
     path('payment-success/', views.payment_success_view,name='payment-success'),
     path('customizer/', views.jersey_customizer, name='customizer'),
+    path('react-tshirt-designer/', views.react_tshirt_designer, name='react_tshirt_designer'),
     path('jersey-customizer/advanced/', views.jersey_customizer_advanced_view, name='jersey-customizer-advanced'),
     path('jersey-customizer/new/', views.jersey_customizer_new_view, name='jersey-customizer-new'),
 
@@ -197,6 +198,8 @@ urlpatterns = [
 
     # Custom Jersey Order API
     path('api/add-custom-order/', views.add_custom_order, name='api-add-custom-order'),
+    path('api/save-tshirt-design/', views.save_tshirt_design, name='save_tshirt_design'),
+    path('api/add-custom-tshirt-to-cart/', views.add_custom_tshirt_to_cart, name='add_custom_tshirt_to_cart'),
 
 ]
 
