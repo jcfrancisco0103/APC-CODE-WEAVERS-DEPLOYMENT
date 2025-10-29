@@ -9,13 +9,16 @@ from .models import Product, InventoryItem
 
 # User registration form
 class CustomerUserForm(forms.ModelForm):
-    confirm_password = forms.CharField(widget=forms.PasswordInput(), label="Confirm Password")
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}), 
+        label="Confirm Password"
+    )
 
     class Meta:
         model = User
         fields = ['first_name', 'last_name', 'username', 'email', 'password']
         widgets = {
-            'password': forms.PasswordInput()
+            'password': forms.PasswordInput(attrs={'autocomplete': 'new-password'})
         }
 
     def clean_username(self):
@@ -95,7 +98,7 @@ class CustomerForm(forms.ModelForm):
         widgets = {
             'citymun': forms.Select(choices=[]),
             'province': forms.Select(choices=[]),
-            'barangay': forms.Select(choices=[]),
+            'barangay': forms.HiddenInput(),
         }
 
     def clean(self):
@@ -126,6 +129,125 @@ class CustomerSignupForm(CustomerForm):
 
     class Meta(CustomerForm.Meta):
         fields = CustomerForm.Meta.fields + ['region']
+
+
+# Multi-step signup forms
+class PersonalInformationForm(forms.ModelForm):
+    """Step 1: Personal Information"""
+    def clean_mobile(self):
+        mobile = self.cleaned_data.get('mobile', '')
+        import re
+        # Accepts format: 956 837 0169 (10 digits, 2 spaces)
+        pattern = r'^\d{3} \d{3} \d{4}$'
+        if not re.match(pattern, mobile):
+            raise forms.ValidationError("Enter number as '956 837 0169' (10 digits, spaces required).")
+        return mobile
+
+    class Meta:
+        model = models.Customer
+        fields = ['mobile']
+
+    # Add User fields
+    first_name = forms.CharField(max_length=30, required=True)
+    last_name = forms.CharField(max_length=30, required=True)
+
+
+class AccountSecurityForm(forms.ModelForm):
+    """Step 2: Account Security"""
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}), 
+        label="Password"
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}), 
+        label="Confirm Password"
+    )
+    privacy_policy = forms.BooleanField(
+        required=True,
+        label='I agree to the Privacy Policy',
+        error_messages={'required': 'You must accept the privacy policy to create an account'}
+    )
+
+    class Meta:
+        model = User
+        fields = ['username']
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and User.objects.filter(username=username).exists():
+            raise forms.ValidationError("Unable to use this username. Please choose another.")
+        return username
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password')
+        if password:
+            if len(password) < 8:
+                raise forms.ValidationError("Password must be at least 8 characters long.")
+            if not re.search(r'[A-Z]', password):
+                raise forms.ValidationError("Password must include at least one uppercase letter.")
+            if not re.search(r'\d', password):
+                raise forms.ValidationError("Password must include at least one number.")
+            if not re.search(r'[!@#$%*]', password):
+                raise forms.ValidationError("Password must include at least one symbol (e.g., !, @, #, $, %, *).")
+        return password
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        confirm_password = cleaned_data.get("confirm_password")
+        if password != confirm_password:
+            raise forms.ValidationError("Passwords do not match")
+
+
+class ShippingAddressForm(forms.ModelForm):
+    """Step 3: Shipping Address"""
+    region = forms.CharField(max_length=100)
+    province = forms.CharField(max_length=100, required=False)
+    citymun = forms.CharField(max_length=100, required=False)
+    barangay = forms.CharField(max_length=100, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['region'].choices = models.Customer.REGION_CHOICES
+        self.fields['region'].widget = forms.Select()
+        self.fields['region'].required = True
+        # Remove city and barangay logic, use citymun, province, barangay
+        for field in ['citymun', 'province', 'barangay']:
+            value = self.data.get(field, None) or self.initial.get(field, None)
+            if value:
+                self.fields[field].choices = [(value, value)]
+            else:
+                self.fields[field].choices = []
+            self.fields[field].widget = forms.Select()
+            # Province is not required for NCR
+            if field == 'province':
+                region_value = self.data.get('region', None) or self.initial.get('region', None)
+                if region_value == 'NCR':
+                    self.fields[field].required = False
+                else:
+                    self.fields[field].required = True
+            else:
+                self.fields[field].required = True
+
+    class Meta:
+        model = models.Customer
+        fields = ['street_address', 'citymun', 'province', 'barangay', 'postal_code', 'region']
+        widgets = {
+            'citymun': forms.Select(choices=[]),
+            'province': forms.Select(choices=[]),
+            'barangay': forms.HiddenInput(),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        region = cleaned_data.get('region')
+        province = cleaned_data.get('province')
+        
+        # For NCR, set province to 'NCR' if not provided
+        if region == 'NCR' and not province:
+            cleaned_data['province'] = 'NCR'
+        
+        return cleaned_data
 
 
 # Product creation and update form

@@ -86,8 +86,11 @@ urlpatterns = [
     path('update-order/<int:pk>', views.update_order_view,name='update-order'),
 
 
-    # Named route for signup to fix NoReverseMatch in templates
-    path('customersignup', views.customer_signup_view, name='signup'),
+    # Named route for signup to fix NoReverseMatch in templates - now redirects to multi-step
+    path('customersignup', views.multi_step_signup_view, name='signup'),
+    # Multi-step signup routes
+    path('signup/', views.multi_step_signup_view, name='multi_step_signup'),
+    path('signup/<int:step>/', views.multi_step_signup_view, name='multi_step_signup'),
     path('customerlogin', LoginView.as_view(template_name='ecom/customerlogin.html'),name='customerlogin'),
     path('customer-home', views.customer_home_view,name='customer-home'),
     path('orders/pending/', views.pending_orders_view, name='pending-orders'),
@@ -197,6 +200,12 @@ urlpatterns = [
 
     # API Welcome endpoint with logging
     path('api/welcome/', views.api_welcome, name='api-welcome'),
+
+    # Address API endpoints
+    path('api/regions/', api_views.get_regions, name='api-regions'),
+    path('api/provinces/', api_views.get_provinces, name='api-provinces'),
+    path('api/cities/', api_views.get_cities, name='api-cities'),
+    path('api/barangays/', api_views.get_barangays, name='api-barangays'),
 
     path('admin-reports', views.admin_report_view, name='admin-reports'),
     path('admin/customer-transactions/<int:customer_id>/', views.get_customer_transactions, name='customer-transactions'),

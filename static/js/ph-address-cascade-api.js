@@ -117,6 +117,14 @@ window.initPHAddressCascadeAPI = function(config) {
   regionSel.addEventListener('change', onRegionChange);
   provinceSel.addEventListener('change', onProvinceChange);
   citymunSel.addEventListener('change', onCityMunChange);
+  
+  // Sync visible barangay select with hidden form field
+  barangaySel.addEventListener('change', function() {
+    const hiddenBarangayField = document.querySelector('input[name="barangay"]');
+    if (hiddenBarangayField) {
+      hiddenBarangayField.value = this.value;
+    }
+  });
 
   populateRegions();
 }
