@@ -107,7 +107,7 @@ urlpatterns = [
     path('customer-address', views.customer_address_view,name='customer-address'),
     path('payment-success/', views.payment_success_view,name='payment-success'),
     path('customizer/', views.jersey_customizer, name='customizer'),
-    path('react-tshirt-designer/', views.react_tshirt_designer, name='react_tshirt_designer'),
+    path('3d-designer/', views.react_tshirt_designer, name='react_tshirt_designer'),
     path('jersey-designer/', views.react_tshirt_designer, name='jersey-designer'),
     path('jersey-customizer/new/', views.jersey_customizer_new_view, name='jersey-customizer-new'),
 

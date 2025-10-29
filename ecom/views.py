@@ -3696,50 +3696,107 @@ def save_tshirt_design(request):
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
 
 @csrf_exempt
-@login_required(login_url='customerlogin')
-@user_passes_test(is_customer)
 def add_custom_tshirt_to_cart(request):
     if request.method == 'POST':
+        # Check if user is authenticated
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'message': 'Please log in to add items to cart',
+                'redirect': '/customerlogin'
+            }, status=401)
+        
+        # Check if user is a customer
+        try:
+            customer = models.Customer.objects.get(user_id=request.user.id)
+        except models.Customer.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Customer account not found',
+                'redirect': '/customerlogin'
+            }, status=403)
+        
         try:
             data = json.loads(request.body)
-            customer = models.Customer.objects.get(user_id=request.user.id)
             
-            # Get or create a pending cart order
-            cart_order, created = models.Orders.objects.get_or_create(
+            # Handle multiple pending orders by getting the most recent one or creating a new one
+            try:
+                # Try to get the most recent pending order
+                cart_order = models.Orders.objects.filter(
+                    customer=customer,
+                    status='Pending'
+                ).order_by('-id').first()
+                
+                if cart_order:
+                    created = False
+                else:
+                    # Create new cart order if none exists
+                    cart_order = models.Orders.objects.create(
+                        customer=customer,
+                        status='Pending',
+                        order_ref=f'CART-{customer.id}-{timezone.now().strftime("%Y%m%d%H%M%S")}',
+                    )
+                    created = True
+            except Exception as e:
+                # Fallback: create a new order
+                cart_order = models.Orders.objects.create(
+                    customer=customer,
+                    status='Pending',
+                    order_ref=f'CART-{customer.id}-{timezone.now().strftime("%Y%m%d%H%M%S")}',
+                )
+                created = True
+            
+            # First create a CustomJerseyDesign object
+            custom_design = models.CustomJerseyDesign.objects.create(
                 customer=customer,
-                status='Pending',
-                defaults={
-                    'order_ref': f'CART-{customer.id}-{timezone.now().strftime("%Y%m%d%H%M%S")}',
-                    'total_amount': 0
-                }
+                jersey_type=data.get('jersey_type', 'jersey'),  # Changed default to jersey
+                collar_type=data.get('collar_type', 'crew_neck'),  # Changed default to crew_neck
+                sleeve_type=data.get('sleeve_type', 'short_sleeve'),  # Added to fix NOT NULL constraint
+                design_scale=data.get('design_scale', 1.0),  # Added to fix NOT NULL constraint
+                fabric_type=data.get('fabric_type', 'polyester'),  # Added to fix NOT NULL constraint
+                is_3d_design=data.get('is_3d_design', False),  # Added to fix NOT NULL constraint
+                logo_position_3d=data.get('logo_position_3d', {}),  # Added to fix NOT NULL constraint
+                text_position_3d=data.get('text_position_3d', {}),  # Added to fix NOT NULL constraint
+                primary_color=data.get('primary_color', '#000000'),
+                secondary_color=data.get('secondary_color', '#ffffff'),
+                pattern=data.get('pattern', 'solid'),
+                front_number=data.get('front_number', ''),
+                back_name=data.get('back_name', ''),
+                back_number=data.get('back_number', ''),
+                text_color=data.get('text_color', '#000000'),
+                logo_placement=data.get('logo_placement', 'none'),
+                design_data=data.get('design_data', {})
             )
             
-            # Create custom order item
+            # Create custom order item with correct fields
             custom_item = models.CustomOrderItem.objects.create(
                 order=cart_order,
-                design_name=data.get('design_name', 'Custom T-Shirt'),
-                design_data=json.dumps(data.get('design_data', {})),
-                preview_image=data.get('preview_image', ''),
+                custom_design=custom_design,
                 quantity=data.get('quantity', 1),
-                unit_price=data.get('price', 25.00),
                 size=data.get('size', 'M'),
-                color=data.get('color', 'White')
+                price=data.get('unit_price', 1499.00),
+                additional_info=data.get('additional_info', ''),
+                is_pre_order=False
             )
             
-            # Update cart total
-            cart_order.total_amount += custom_item.unit_price * custom_item.quantity
-            cart_order.save()
+            # Note: Total amount is calculated dynamically via get_total_amount() method
+            # No need to update a total_amount field as it doesn't exist
             
             return JsonResponse({
                 'success': True,
                 'message': 'Custom t-shirt added to cart successfully',
                 'cart_item_id': custom_item.id
             })
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid JSON data'
+            }, status=400)
         except Exception as e:
             return JsonResponse({
                 'success': False,
                 'message': str(e)
-            }, status=400)
+            }, status=500)
     
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
 

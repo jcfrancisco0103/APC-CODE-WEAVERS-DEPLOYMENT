@@ -434,7 +434,14 @@ class CustomJerseyDesign(models.Model):
     Store custom jersey design configurations for orders
     """
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-    jersey_type = models.CharField(max_length=50, default='standard')
+    jersey_type = models.CharField(max_length=50, default='jersey')  # Changed default to jersey
+    collar_type = models.CharField(max_length=50, default='crew_neck')  # Changed default to crew_neck
+    sleeve_type = models.CharField(max_length=50, default='short_sleeve')  # Added to fix NOT NULL constraint
+    design_scale = models.FloatField(default=1.0)  # Added to fix NOT NULL constraint
+    fabric_type = models.CharField(max_length=50, default='polyester')  # Added to fix NOT NULL constraint
+    is_3d_design = models.BooleanField(default=False)  # Added to fix NOT NULL constraint
+    logo_position_3d = models.JSONField(default=dict, help_text="3D logo position coordinates")  # Added to fix NOT NULL constraint
+    text_position_3d = models.JSONField(default=dict, help_text="3D text position coordinates")  # Added to fix NOT NULL constraint
     primary_color = models.CharField(max_length=7, default='#000000')  # Hex color
     secondary_color = models.CharField(max_length=7, default='#ffffff')  # Hex color
     pattern = models.CharField(max_length=50, default='solid')
