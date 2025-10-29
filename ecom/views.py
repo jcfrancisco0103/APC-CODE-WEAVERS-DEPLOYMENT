@@ -334,6 +334,125 @@ def customer_signup_view(request):
     return render(request, 'ecom/customersignup.html', context=mydict)
 
 
+def multi_step_signup_view(request, step=1):
+    """Multi-step signup process"""
+    step = int(step)
+    
+    # Initialize session data if not exists
+    if 'signup_data' not in request.session:
+        request.session['signup_data'] = {}
+    
+    # Handle form submission
+    if request.method == 'POST':
+        if step == 1:
+            form = forms.PersonalInformationForm(request.POST, request.FILES)
+            if form.is_valid():
+                # Store step 1 data in session
+                request.session['signup_data']['step1'] = {
+                    'first_name': form.cleaned_data['first_name'],
+                    'last_name': form.cleaned_data['last_name'],
+                    'mobile': form.cleaned_data['mobile'],
+                }
+                
+                request.session.modified = True
+                return redirect('multi_step_signup', step=2)
+        
+        elif step == 2:
+            form = forms.AccountSecurityForm(request.POST)
+            if form.is_valid():
+                # Store step 2 data in session
+                request.session['signup_data']['step2'] = {
+                    'username': form.cleaned_data['username'],
+                    'password': form.cleaned_data['password'],
+                    'privacy_policy': form.cleaned_data['privacy_policy'],
+                }
+                request.session.modified = True
+                return redirect('multi_step_signup', step=3)
+        
+        elif step == 3:
+            form = forms.ShippingAddressForm(request.POST)
+            if form.is_valid():
+                # Store step 3 data in session
+                request.session['signup_data']['step3'] = {
+                    'street_address': form.cleaned_data['street_address'],
+                    'region': form.cleaned_data['region'],
+                    'province': form.cleaned_data['province'],
+                    'citymun': form.cleaned_data['citymun'],
+                    'barangay': form.cleaned_data['barangay'],
+                    'postal_code': form.cleaned_data['postal_code'],
+                }
+                request.session.modified = True
+                
+                # Create user and customer with all collected data
+                try:
+                    signup_data = request.session['signup_data']
+                    
+                    # Create User
+                    user = User.objects.create_user(
+                        username=signup_data['step2']['username'],
+                        password=signup_data['step2']['password'],
+                        first_name=signup_data['step1']['first_name'],
+                        last_name=signup_data['step1']['last_name'],
+                        is_active=True
+                    )
+                    
+                    # Create Customer
+                    customer = models.Customer.objects.create(
+                        user=user,
+                        mobile=signup_data['step1']['mobile'],
+                        street_address=signup_data['step3']['street_address'],
+                        region=signup_data['step3']['region'],
+                        province=signup_data['step3']['province'],
+                        citymun=signup_data['step3']['citymun'],
+                        barangay=signup_data['step3']['barangay'],
+                        postal_code=signup_data['step3']['postal_code'],
+                    )
+                    
+                    # Add user to customer group
+                    my_customer_group = Group.objects.get_or_create(name='CUSTOMER')
+                    my_customer_group[0].user_set.add(user)
+                    
+                    # Clear session data
+                    del request.session['signup_data']
+                    request.session.modified = True
+                    
+                    messages.success(request, 'Registration successful! You can now log in.')
+                    return redirect('customerlogin')
+                    
+                except Exception as e:
+                    messages.error(request, f'Registration failed: {str(e)}')
+                    form.add_error(None, 'Registration failed. Please try again.')
+    
+    # Handle GET requests - show appropriate form
+    else:
+        if step == 1:
+            # Pre-populate with session data if available
+            initial_data = request.session.get('signup_data', {}).get('step1', {})
+            form = forms.PersonalInformationForm(initial=initial_data)
+        elif step == 2:
+            initial_data = request.session.get('signup_data', {}).get('step2', {})
+            form = forms.AccountSecurityForm(initial=initial_data)
+        elif step == 3:
+            initial_data = request.session.get('signup_data', {}).get('step3', {})
+            form = forms.ShippingAddressForm(initial=initial_data)
+        else:
+            return redirect('multi_step_signup', step=1)
+    
+    # Calculate progress percentage
+    progress = (step / 3) * 100
+    
+    context = {
+        'form': form,
+        'step': step,
+        'progress': progress,
+        'step_title': ['Personal Information', 'Account Security', 'Shipping Address'][step-1],
+        'next_step': step + 1 if step < 3 else None,
+        'prev_step': step - 1 if step > 1 else None,
+    }
+    
+    return render(request, f'ecom/signup_step_{step}.html', context)
+
+
 
 def customer_login(request):
   if request.method == 'POST':
