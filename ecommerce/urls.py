@@ -13,6 +13,7 @@ from ecom.views import admin_manage_inventory_view
 from ecom import api_views
 from ecom import chatbot_views
 from ecom import ai_views
+from ecom import email_verification as email_verification_views
 
 
 
@@ -188,11 +189,23 @@ urlpatterns = [
     path('api/ai/color-harmony/', ai_views.ai_color_harmony_recommend, name='ai-color-harmony'),
     path('api/ai/pattern-suggest/', ai_views.ai_jersey_pattern_suggest, name='ai-pattern-suggest'),
 
+    # Philippine Address API endpoints
+    path('api/regions/', api_views.get_regions, name='api-regions'),
+    path('api/provinces/', api_views.get_provinces, name='api-provinces'),
+    path('api/cities/', api_views.get_cities, name='api-cities'),
+    path('api/barangays/', api_views.get_barangays, name='api-barangays'),
+
     # API Welcome endpoint with logging
     path('api/welcome/', views.api_welcome, name='api-welcome'),
 
     path('admin-reports', views.admin_report_view, name='admin-reports'),
     path('admin/customer-transactions/<int:customer_id>/', views.get_customer_transactions, name='customer-transactions'),
+    
+    # Email Verification URLs
+    path('verify-email/<uuid:token>/', email_verification_views.verify_email_view, name='verify_email'),
+    path('resend-verification/', email_verification_views.resend_verification_view, name='resend_verification'),
+    path('verification-required/', email_verification_views.verification_required_view, name='verification_required'),
+    path('api/check-verification-status/', email_verification_views.check_verification_status, name='check_verification_status'),
 ]
 
 if settings.DEBUG:

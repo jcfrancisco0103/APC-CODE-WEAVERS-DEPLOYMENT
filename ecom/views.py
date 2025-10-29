@@ -316,7 +316,7 @@ def customer_signup_view(request):
         if userForm.is_valid() and customerForm.is_valid():
             user = userForm.save(commit=False)
             user.set_password(userForm.cleaned_data['password'])
-            user.is_active = True  # User is active immediately after signup
+            user.is_active = False  # User needs email verification before activation
             user.save()
             
             customer = customerForm.save(commit=False)
@@ -326,8 +326,14 @@ def customer_signup_view(request):
             my_customer_group = Group.objects.get_or_create(name='CUSTOMER')
             my_customer_group[0].user_set.add(user)
             
-            messages.success(request, 'Registration successful! You can now log in.')
-            return redirect('customerlogin')
+            # Import and send verification email
+            from .email_verification import send_verification_email
+            if send_verification_email(user, request):
+                messages.success(request, 'Registration successful! Please check your email to verify your account before logging in.')
+                return redirect('verification_required')
+            else:
+                messages.error(request, 'Registration successful but failed to send verification email. Please contact support.')
+                return redirect('customerlogin')
         else:
             # Show errors in the template
             mydict = {'userForm': userForm, 'customerForm': customerForm}

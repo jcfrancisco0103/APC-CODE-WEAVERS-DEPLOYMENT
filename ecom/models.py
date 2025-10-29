@@ -1,5 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import RegexValidator
+from django.utils import timezone
+from datetime import timedelta
+import uuid
 # Create your models here.
 class Customer(models.Model):
     REGION_CHOICES = [
@@ -487,6 +491,35 @@ class CustomOrderItem(models.Model):
     def get_total_price(self):
         """Calculate total price for this custom order item"""
         return self.price * self.quantity
+
+
+class EmailVerification(models.Model):
+    """Model to handle email verification for user registration"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    verification_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    is_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = 'Email Verification'
+        verbose_name_plural = 'Email Verifications'
+    
+    def __str__(self):
+        return f"Email verification for {self.user.username} - {'Verified' if self.is_verified else 'Pending'}"
+    
+    def is_token_expired(self):
+        """Check if verification token has expired (24 hours)"""
+        expiry_time = self.created_at + timedelta(hours=24)
+        return timezone.now() > expiry_time
+    
+    def verify_email(self):
+        """Mark email as verified and activate user account"""
+        self.is_verified = True
+        self.verified_at = timezone.now()
+        self.user.is_active = True
+        self.save()
+        self.user.save()
 
 
 

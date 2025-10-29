@@ -13,7 +13,7 @@ class CustomerUserForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'username', 'password']
+        fields = ['first_name', 'last_name', 'username', 'email', 'password']
         widgets = {
             'password': forms.PasswordInput()
         }
@@ -23,6 +23,12 @@ class CustomerUserForm(forms.ModelForm):
         if username and User.objects.filter(username=username).exists():
             raise forms.ValidationError("Unable to use this username. Please choose another.")
         return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and User.objects.filter(email=email).exists():
+            raise forms.ValidationError("An account with this email already exists.")
+        return email
 
     def clean_password(self):
         password = self.cleaned_data.get('password')
