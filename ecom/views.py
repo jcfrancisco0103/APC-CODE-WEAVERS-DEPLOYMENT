@@ -1513,7 +1513,7 @@ def cancelled_orders_view(request):
 
 def cart_page(request):
     user = request.user
-    cart_items = Cart.objects.filter(user=user)
+    cart_items = cart_items.objects.filter(user=user)
     
     # Check if cart is empty
     if not cart_items.exists():
@@ -1529,7 +1529,7 @@ def cart_page(request):
     except Customer.DoesNotExist:
         return HttpResponse("Invalid Customer ID")
 
-    cart_items = Cart.objects.filter(user=user)
+    cart_items = cart_items.objects.filter(user=user)
 
     # Check if the payment was made with PayPal
     if paypal_transaction_id:
@@ -2983,7 +2983,7 @@ def manage_addresses_view(request):
     """View for managing customer addresses on a dedicated page"""
     customer = Customer.objects.get(user=request.user)
     saved_addresses = SavedAddress.objects.filter(customer=customer).order_by('-is_default', '-updated_at')
-    
+
     context = {
         'saved_addresses': saved_addresses,
     }
@@ -2995,6 +2995,25 @@ def ai_designer_view(request):
     AI-powered 2D designer page for creating custom designs
     """
     return render(request, 'ecom/ai_designer.html')
+
+# New API endpoint for welcome message with logging
+def api_welcome(request):
+    """
+    API endpoint that logs request metadata and returns a welcome JSON response
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Log request metadata
+    user_info = f"User: {request.user.username} (ID: {request.user.id})" if request.user.is_authenticated else "Anonymous user"
+    logger.info(f"API Welcome Request - Method: {request.method}, Path: {request.path}, {user_info}, IP: {request.META.get('REMOTE_ADDR')}")
+
+    # Return JSON response
+    return JsonResponse({
+        'message': 'Welcome to the E-commerce API!',
+        'timestamp': timezone.now().isoformat(),
+        'version': '1.0'
+    })
 
 
 # Automated Delivery System Views
@@ -4011,6 +4030,378 @@ def admin_order_detail_ajax(request, order_id):
         })
 
 @admin_required
+def admin_report_view(request):
+    """
+    Admin view for generating sales reports with comprehensive metrics
+    """
+    from django.db.models import Sum, Count, Avg, Q
+    from datetime import timedelta
+    
+    # Get filter parameters
+    month = request.GET.get('month')
+    year = request.GET.get('year')
+    export = request.GET.get('export')
+
+    # Base queryset for completed orders
+    orders = models.Orders.objects.filter(status='Delivered').select_related('customer__user')
+
+    # Apply filters
+    if month:
+        orders = orders.filter(created_at__month=month)
+    if year:
+        orders = orders.filter(created_at__year=year)
+
+    # Prepare report data
+    report_data = []
+    for order in orders:
+        customer_name = f"{order.customer.user.first_name} {order.customer.user.last_name}" if order.customer and order.customer.user else 'Unknown'
+        total_amount = float(order.get_total_amount())
+        report_data.append({
+            'date': order.created_at.strftime('%Y-%m-%d'),
+            'customer_name': customer_name,
+            'order_id': order.order_ref or f"ORD-{order.id}",
+            'amount': total_amount,
+        })
+
+    # Handle export
+    if export == 'csv':
+        import csv
+        from django.http import HttpResponse
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="sales_report-{timezone.now().strftime("%Y-%m-%d")}.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Customer', 'Order ID', 'Amount'])
+
+        for record in report_data:
+            writer.writerow([
+                record['date'],
+                record['customer_name'],
+                record['order_id'],
+                record['amount']
+            ])
+
+        return response
+
+    # Calculate comprehensive metrics from database
+    
+    # 1. Total Revenue - sum of all delivered orders
+    total_revenue = models.Orders.objects.filter(status='Delivered').aggregate(
+        total=Sum('orderitem__price') + Sum('delivery_fee')
+    )['total'] or 0
+    
+    # Alternative calculation using get_total_amount method
+    delivered_orders = models.Orders.objects.filter(status='Delivered')
+    total_revenue_alt = sum(order.get_total_amount() for order in delivered_orders)
+    
+    # 2. Total Orders - count of all orders (not just delivered)
+    total_orders = models.Orders.objects.count()
+    
+    # 3. Total Customers - count of unique customers
+    total_customers = models.Customer.objects.count()
+    
+    # 4. Average Order Value - total revenue / number of delivered orders
+    delivered_orders_count = models.Orders.objects.filter(status='Delivered').count()
+    avg_order_value = total_revenue_alt / delivered_orders_count if delivered_orders_count > 0 else 0
+    
+    # 5. Conversion Rate - (customers with orders / total customers) * 100
+    customers_with_orders = models.Customer.objects.filter(orders__isnull=False).distinct().count()
+    conversion_rate = (customers_with_orders / total_customers * 100) if total_customers > 0 else 0
+    
+    # 6. Active Users - customers who have logged in or placed orders in the last 30 days
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    active_users = models.Customer.objects.filter(
+        Q(user__last_login__gte=thirty_days_ago) | 
+        Q(orders__created_at__gte=thirty_days_ago)
+    ).distinct().count()
+
+    # 7. Monthly Sales Data for Sales Trend Chart (last 12 months)
+    from datetime import datetime
+    import calendar
+    
+    current_date = timezone.now()
+    monthly_sales_data = []
+    monthly_labels = []
+    
+    for i in range(11, -1, -1):  # Last 12 months
+        # Calculate the target month and year
+        target_month = current_date.month - i
+        target_year = current_date.year
+        
+        # Handle year rollover
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+        
+        # Get orders for this month
+        monthly_orders = models.Orders.objects.filter(
+            status='Delivered',
+            created_at__year=target_year,
+            created_at__month=target_month
+        )
+        
+        # Calculate total sales for this month
+        monthly_total = sum(order.get_total_amount() for order in monthly_orders)
+        monthly_sales_data.append(float(monthly_total))
+        
+        # Create month label (e.g., "Jan", "Feb")
+        month_name = calendar.month_abbr[target_month]
+        monthly_labels.append(month_name)
+
+    # 8. Category Sales Data
+    category_data = []
+    category_labels = []
+    
+    # Get product categories and their sales
+    products_with_sales = models.Product.objects.filter(
+        orderitem__order__status='Delivered'
+    ).distinct()
+    
+    category_sales = {}
+    for product in products_with_sales:
+        category = product.category if hasattr(product, 'category') else 'Other'
+        if category not in category_sales:
+            category_sales[category] = 0
+        
+        # Calculate total sales for this category
+        category_orders = models.OrderItem.objects.filter(
+            product=product,
+            order__status='Delivered'
+        )
+        category_total = sum(item.price for item in category_orders)
+        category_sales[category] += float(category_total)
+    
+    # Convert to lists for chart
+    for category, sales in category_sales.items():
+        category_labels.append(category)
+        category_data.append(float(sales))
+    
+    # If no categories found, use default data
+    if not category_data:
+        category_labels = ['Clothing', 'Accessories', 'Shoes', 'Other']
+        category_data = [0, 0, 0, 0]
+
+    # 9. Payment Method Data
+    payment_methods = ['GCash', 'Cash on Delivery', 'Bank Transfer']
+    payment_data = []
+    
+    for method in payment_methods:
+        # Count orders by payment method (you may need to adjust based on your payment field)
+        method_orders = models.Orders.objects.filter(
+            status='Delivered',
+            # Add payment method filter here if you have a payment_method field
+        )
+        method_total = sum(order.get_total_amount() for order in method_orders)
+        payment_data.append(float(method_total) // len(payment_methods))  # Distribute evenly for now
+    
+    # 10. Customer Growth Data (last 6 months)
+    customer_growth_data = []
+    customer_growth_labels = []
+    
+    for i in range(5, -1, -1):  # Last 6 months
+        target_month = current_date.month - i
+        target_year = current_date.year
+        
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+        
+        # Count customers registered in this month
+        monthly_customers = models.Customer.objects.filter(
+            user__date_joined__year=target_year,
+            user__date_joined__month=target_month
+        ).count()
+        
+        customer_growth_data.append(monthly_customers)
+        month_name = calendar.month_abbr[target_month]
+        customer_growth_labels.append(month_name)
+
+    # 11. Get customers list with their order statistics
+    customers_list = []
+    for customer in models.Customer.objects.select_related('user').all():
+        customer_orders = models.Orders.objects.filter(customer=customer, status='Delivered')
+        total_orders = customer_orders.count()
+        total_spending = sum(order.get_total_amount() for order in customer_orders)
+        
+        customers_list.append({
+            'id': customer.id,
+            'get_name': f"{customer.user.first_name} {customer.user.last_name}".strip() or customer.user.username,
+            'user': customer.user,
+            'total_orders': total_orders,
+            'total_spending': total_spending,
+            'status': getattr(customer, 'status', 'active')  # Default to active if no status field
+        })
+
+    context = {
+        'report_data': report_data,
+        'total_sales': sum(record['amount'] for record in report_data),
+        'total_orders': len(report_data),
+        # New comprehensive metrics
+        'total_revenue': total_revenue_alt,
+        'total_orders_all': total_orders,
+        'total_customers': total_customers,
+        'avg_order_value': avg_order_value,
+        'conversion_rate': conversion_rate,
+        'active_users': active_users,
+        # Sales trend data for chart - properly formatted for JavaScript
+        'monthly_sales_data': json.dumps(monthly_sales_data or []),
+        'monthly_labels': json.dumps(monthly_labels or []),
+        # Category data
+        'category_data': json.dumps(category_data or []),
+        'category_labels': json.dumps(category_labels or []),
+        # Payment method data
+        'payment_data': json.dumps(payment_data or []),
+        'payment_labels': json.dumps(payment_methods or []),
+        # Customer growth data
+        'customer_growth_data': json.dumps(customer_growth_data or []),
+        'customer_growth_labels': json.dumps(customer_growth_labels or []),
+        
+        # Product Analytics Data
+        'top_selling_products': get_top_selling_products(),
+        'low_performing_products': get_low_performing_products(),
+        
+        # Customer list for the new functionality
+        'customers_list': customers_list,
+    }
+    
+    return render(request, 'ecom/admin_reports.html', context)
+
+@admin_required
+def get_customer_transactions(request, customer_id):
+    """
+    API endpoint to get transactions for a specific customer
+    """
+    from django.http import JsonResponse
+    
+    try:
+        customer = models.Customer.objects.get(id=customer_id)
+        orders = models.Orders.objects.filter(customer=customer).order_by('-created_at')
+        
+        transactions = []
+        for order in orders:
+            # Get order items for product details
+            order_items = models.OrderItem.objects.filter(order=order)
+            products = []
+            
+            for item in order_items:
+                products.append({
+                    'name': item.product.name if item.product else 'Unknown Product',
+                    'quantity': item.quantity,
+                    'price': float(item.price)
+                })
+            
+            transactions.append({
+                'id': order.id,
+                'reference': order.order_ref or f"ORD-{order.id}",
+                'date': order.created_at.strftime('%Y-%m-%d %H:%M'),
+                'status': order.status,
+                'total_amount': float(order.get_total_amount()),
+                'products': products,
+                'delivery_fee': float(order.delivery_fee) if order.delivery_fee else 0.0,
+                'payment_method': getattr(order, 'payment_method', 'N/A')
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'transactions': transactions,
+            'customer_name': f"{customer.user.first_name} {customer.user.last_name}".strip() or customer.user.username
+        })
+        
+    except models.Customer.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Customer not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+def get_top_selling_products(limit=10):
+    """
+    Get top selling products based on total quantity sold from delivered orders
+    """
+    from django.db.models import Sum, Count
+    
+    top_products = models.Product.objects.filter(
+        orderitem__order__status='Delivered'
+    ).annotate(
+        total_sold=Sum('orderitem__quantity'),
+        total_revenue=Sum('orderitem__price'),
+        order_count=Count('orderitem__order', distinct=True)
+    ).filter(
+        total_sold__gt=0
+    ).order_by('-total_sold')[:limit]
+    
+    product_data = []
+    for product in top_products:
+        product_data.append({
+            'name': product.name,
+            'total_sold': product.total_sold or 0,
+            'total_revenue': float(product.total_revenue or 0),
+            'order_count': product.order_count or 0,
+            'price': float(product.price),
+            'image_url': product.product_image.url if product.product_image else '/static/default-product.png'
+        })
+    
+    return product_data
+
+def get_low_performing_products(limit=10):
+    """
+    Get low performing products based on lowest quantity sold from delivered orders
+    Only includes products that have been ordered at least once
+    """
+    from django.db.models import Sum, Count
+    
+    # Get products that have been ordered but have low sales
+    low_products = models.Product.objects.filter(
+        orderitem__order__status='Delivered'
+    ).annotate(
+        total_sold=Sum('orderitem__quantity'),
+        total_revenue=Sum('orderitem__price'),
+        order_count=Count('orderitem__order', distinct=True)
+    ).filter(
+        total_sold__gt=0
+    ).order_by('total_sold')[:limit]
+    
+    product_data = []
+    for product in low_products:
+        product_data.append({
+            'name': product.name,
+            'total_sold': product.total_sold or 0,
+            'total_revenue': float(product.total_revenue or 0),
+            'order_count': product.order_count or 0,
+            'price': float(product.price),
+            'image_url': product.product_image.url if product.product_image else '/static/default-product.png'
+        })
+    
+    # If we don't have enough products with sales, include products with no sales
+    if len(product_data) < limit:
+        remaining_limit = limit - len(product_data)
+        sold_product_ids = [p['name'] for p in product_data]
+        
+        unsold_products = models.Product.objects.exclude(
+            name__in=sold_product_ids
+        ).exclude(
+            orderitem__order__status='Delivered'
+        )[:remaining_limit]
+        
+        for product in unsold_products:
+            product_data.append({
+                'name': product.name,
+                'total_sold': 0,
+                'total_revenue': 0.0,
+                'order_count': 0,
+                'price': float(product.price),
+                'image_url': product.product_image.url if product.product_image else '/static/default-product.png'
+            })
+    
+    return product_data
+
+
+@admin_required
 def admin_view_pre_orders(request):
     """
     Admin view to display all pre-orders with customer and design details
@@ -4146,667 +4537,3 @@ def remove_custom_item_view(request, pk):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
-# Import the new decorators
-from .decorators import report_permission_required, any_report_permission_required, export_permission_required
-
-# ==================== REPORT MANAGEMENT VIEWS ====================
-
-@any_report_permission_required()
-def reports_dashboard_view(request):
-    """Main reports dashboard showing available report types and recent reports"""
-    # Get user's report permissions
-    user_permissions = models.ReportAccess.objects.filter(user=request.user)
-    allowed_report_types = [perm.report_type for perm in user_permissions if perm.can_view]
-    
-    # If user has no specific permissions but is admin, allow all reports
-    if not user_permissions.exists() and request.user.is_superuser:
-        allowed_report_types = ['sales', 'customer', 'inventory', 'product']
-    
-    # Get recent reports (only those user has access to)
-    recent_reports = models.GeneratedReport.objects.filter(
-        generated_by=request.user,
-        template__report_type__in=allowed_report_types if allowed_report_types else []
-    ).order_by('-created_at')[:10]
-    
-    # Get report templates (filter by user permissions)
-    available_templates = models.ReportTemplate.objects.filter(
-        is_active=True,
-        report_type__in=allowed_report_types if allowed_report_types else []
-    )
-    
-    # Calculate some basic stats for the dashboard
-    total_reports_generated = models.GeneratedReport.objects.filter(
-        generated_by=request.user,
-        template__report_type__in=allowed_report_types if allowed_report_types else []
-    ).count()
-    
-    context = {
-        'user_permissions': user_permissions,
-        'recent_reports': recent_reports,
-        'available_templates': available_templates,
-        'total_reports_generated': total_reports_generated,
-        'allowed_report_types': allowed_report_types,
-    }
-    
-    return render(request, 'ecom/reports_dashboard.html', context)
-
-
-@report_permission_required('sales', 'view')
-def sales_report_view(request):
-    """Generate and display sales reports with filtering and visualization"""
-    from django.utils import timezone
-    from datetime import datetime, timedelta
-    import json
-    
-    # Get date range from request
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    
-    # Default to last 30 days if no dates provided
-    if not date_from or not date_to:
-        end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=30)
-        date_from = start_date.strftime('%Y-%m-%d')
-        date_to = end_date.strftime('%Y-%m-%d')
-    else:
-        start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-        end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-    
-    # Get orders within date range
-    orders = models.Orders.objects.filter(
-        created_at__date__range=[start_date, end_date],
-        status='Delivered'
-    ).select_related('customer')
-    
-    # Calculate sales metrics
-    total_orders = orders.count()
-    total_revenue = 0
-    total_items_sold = 0
-    
-    # Daily sales data for chart
-    daily_sales = {}
-    current_date = start_date
-    while current_date <= end_date:
-        daily_sales[current_date.strftime('%Y-%m-%d')] = {
-            'orders': 0,
-            'revenue': 0,
-            'items': 0
-        }
-        current_date += timedelta(days=1)
-    
-    # Product performance data
-    product_sales = {}
-    
-    for order in orders:
-        order_items = models.OrderItem.objects.filter(order=order)
-        order_total = 0
-        order_items_count = 0
-        
-        for item in order_items:
-            item_total = float(item.price * item.quantity)
-            order_total += item_total
-            order_items_count += item.quantity
-            
-            # Track product sales
-            product_id = item.product.id
-            if product_id not in product_sales:
-                product_sales[product_id] = {
-                    'name': item.product.name,
-                    'quantity': 0,
-                    'revenue': 0
-                }
-            product_sales[product_id]['quantity'] += item.quantity
-            product_sales[product_id]['revenue'] += item_total
-        
-        total_revenue += order_total
-        total_items_sold += order_items_count
-        
-        # Add to daily sales
-        order_date = order.created_at.date().strftime('%Y-%m-%d')
-        if order_date in daily_sales:
-            daily_sales[order_date]['orders'] += 1
-            daily_sales[order_date]['revenue'] += order_total
-            daily_sales[order_date]['items'] += order_items_count
-    
-    # Calculate average order value
-    avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
-    
-    # Get top products
-    top_products = sorted(
-        product_sales.values(),
-        key=lambda x: x['revenue'],
-        reverse=True
-    )[:10]
-    
-    # Prepare chart data
-    chart_data = {
-        'labels': list(daily_sales.keys()),
-        'revenue': [daily_sales[date]['revenue'] for date in daily_sales.keys()],
-        'orders': [daily_sales[date]['orders'] for date in daily_sales.keys()],
-    }
-    
-    context = {
-        'date_from': date_from,
-        'date_to': date_to,
-        'total_orders': total_orders,
-        'total_revenue': total_revenue,
-        'total_items_sold': total_items_sold,
-        'avg_order_value': avg_order_value,
-        'top_products': top_products,
-        'chart_data': json.dumps(chart_data),
-        'orders': orders[:50],  # Limit for display
-    }
-    
-    return render(request, 'ecom/sales_report.html', context)
-
-
-@report_permission_required('customer', 'view')
-def customer_report_view(request):
-    """Generate and display customer analytics reports"""
-    from django.utils import timezone
-    from datetime import datetime, timedelta
-    from django.db.models import Count, Sum, Avg, Q, F
-    import json
-    
-    # Get date range from request
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    
-    # Default to last 30 days if no dates provided
-    if not date_from or not date_to:
-        end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=30)
-        date_from = start_date.strftime('%Y-%m-%d')
-        date_to = end_date.strftime('%Y-%m-%d')
-    else:
-        start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-        end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-    
-    # Customer metrics
-    total_customers = models.Customer.objects.count()
-    new_customers = models.Customer.objects.filter(
-        user__date_joined__date__range=[start_date, end_date]
-    ).count()
-    
-    # Active customers (those who made orders in the period)
-    active_customers = models.Customer.objects.filter(
-        orders__created_at__date__range=[start_date, end_date]
-    ).distinct().count()
-    
-    # Customer spending analysis
-    customer_spending = models.Customer.objects.annotate(
-        total_orders=Count('orders', filter=Q(orders__status='Delivered')),
-        total_spent=Sum(
-            F('orders__orderitem__price') * F('orders__orderitem__quantity'),
-            filter=Q(orders__status='Delivered')
-        )
-    ).filter(total_spent__isnull=False).order_by('-total_spent')
-    
-    # Top spending customers
-    top_customers = customer_spending[:10]
-    
-    # Customer registration trend
-    daily_registrations = {}
-    current_date = start_date
-    while current_date <= end_date:
-        daily_registrations[current_date.strftime('%Y-%m-%d')] = 0
-        current_date += timedelta(days=1)
-    
-    new_customer_data = models.Customer.objects.filter(
-        user__date_joined__date__range=[start_date, end_date]
-    ).values('user__date_joined__date').annotate(count=Count('id'))
-    
-    for data in new_customer_data:
-        date_str = data['user__date_joined__date'].strftime('%Y-%m-%d')
-        if date_str in daily_registrations:
-            daily_registrations[date_str] = data['count']
-    
-    # Calculate customer lifetime value
-    avg_customer_value = customer_spending.aggregate(
-        avg_value=Avg('total_spent')
-    )['avg_value'] or 0
-    
-    # Prepare chart data
-    chart_data = {
-        'labels': list(daily_registrations.keys()),
-        'registrations': list(daily_registrations.values()),
-    }
-    
-    context = {
-        'date_from': date_from,
-        'date_to': date_to,
-        'total_customers': total_customers,
-        'new_customers': new_customers,
-        'active_customers': active_customers,
-        'top_customers': top_customers,
-        'avg_customer_value': avg_customer_value,
-        'chart_data': json.dumps(chart_data),
-    }
-    
-    return render(request, 'ecom/customer_report.html', context)
-
-
-@report_permission_required('inventory', 'view')
-def inventory_report_view(request):
-    """Generate and display inventory reports"""
-    from django.db.models import Sum, F
-    import json
-    
-    # Get all products with inventory data
-    products = models.Product.objects.select_related().annotate(
-        total_value=F('price') * F('quantity')
-    )
-    
-    # Calculate inventory metrics
-    total_products = products.count()
-    total_stock_value = products.aggregate(
-        total=Sum('total_value')
-    )['total'] or 0
-    
-    # Low stock items (less than 10 units)
-    low_stock_threshold = int(request.GET.get('low_stock_threshold', 10))
-    low_stock_items = products.filter(quantity__lt=low_stock_threshold, quantity__gt=0)
-    out_of_stock_items = products.filter(quantity=0)
-    
-    # Inventory by category (using default category since Product model doesn't have category field)
-    category_data = {}
-    for product in products:
-        category = 'General Products'  # Default category since Product model doesn't have category field
-        if category not in category_data:
-            category_data[category] = {
-                'count': 0,
-                'total_quantity': 0,
-                'total_value': 0
-            }
-        category_data[category]['count'] += 1
-        category_data[category]['total_quantity'] += product.quantity
-        category_data[category]['total_value'] += float(product.price * product.quantity)
-    
-    # Get inventory items
-    inventory_items = models.InventoryItem.objects.select_related('product')
-    
-    # Prepare chart data
-    chart_data = {
-        'categories': list(category_data.keys()),
-        'quantities': [category_data[cat]['total_quantity'] for cat in category_data.keys()],
-        'values': [category_data[cat]['total_value'] for cat in category_data.keys()],
-    }
-    
-    context = {
-        'total_products': total_products,
-        'total_stock_value': total_stock_value,
-        'low_stock_items': low_stock_items,
-        'out_of_stock_items': out_of_stock_items,
-        'low_stock_threshold': low_stock_threshold,
-        'category_data': category_data,
-        'inventory_items': inventory_items,
-        'chart_data': json.dumps(chart_data),
-    }
-    
-    return render(request, 'ecom/inventory_report.html', context)
-
-
-@report_permission_required('product', 'view')
-def product_report_view(request):
-    """Generate and display product performance reports"""
-    from django.db.models import Sum, Count, Avg, F, Q
-    from django.utils import timezone
-    from datetime import datetime, timedelta
-    import json
-    
-    # Get date range from request
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    
-    # Default to last 30 days if no dates provided
-    if not date_from or not date_to:
-        end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=30)
-        date_from = start_date.strftime('%Y-%m-%d')
-        date_to = end_date.strftime('%Y-%m-%d')
-    else:
-        start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-        end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-    
-    # Get product performance data
-    products = models.Product.objects.annotate(
-        units_sold=Sum(
-            'orderitem__quantity',
-            filter=Q(
-                orderitem__order__status='Delivered',
-                orderitem__order__created_at__date__range=[start_date, end_date]
-            )
-        ),
-        revenue_generated=Sum(
-            F('orderitem__price') * F('orderitem__quantity'),
-            filter=Q(
-                orderitem__order__status='Delivered',
-                orderitem__order__created_at__date__range=[start_date, end_date]
-            )
-        ),
-        avg_rating=Avg('productreview__rating'),
-        review_count=Count('productreview')
-    ).order_by('-revenue_generated')
-    
-    # Filter out products with no sales
-    products_with_sales = products.filter(units_sold__isnull=False, units_sold__gt=0)
-    
-    # Top performing products
-    top_products_by_revenue = products_with_sales[:10]
-    top_products_by_quantity = products.order_by('-units_sold')[:10]
-    
-    # Category performance
-    category_performance = {}
-    for product in products_with_sales:
-        category = product.category or 'Uncategorized'
-        if category not in category_performance:
-            category_performance[category] = {
-                'products': 0,
-                'total_units': 0,
-                'total_revenue': 0
-            }
-        category_performance[category]['products'] += 1
-        category_performance[category]['total_units'] += product.units_sold or 0
-        category_performance[category]['total_revenue'] += float(product.revenue_generated or 0)
-    
-    # Prepare chart data
-    chart_data = {
-        'top_products': [p.name for p in top_products_by_revenue],
-        'revenues': [float(p.revenue_generated or 0) for p in top_products_by_revenue],
-        'quantities': [p.units_sold or 0 for p in top_products_by_revenue],
-    }
-    
-    context = {
-        'date_from': date_from,
-        'date_to': date_to,
-        'products_with_sales': products_with_sales,
-        'top_products_by_revenue': top_products_by_revenue,
-        'top_products_by_quantity': top_products_by_quantity,
-        'category_performance': category_performance,
-        'chart_data': json.dumps(chart_data),
-    }
-    
-    return render(request, 'ecom/product_report.html', context)
-
-
-@export_permission_required
-def export_report_view(request):
-    """Export reports in different formats (PDF, CSV, Excel)"""
-    from .export_utils import (
-        ReportExporter, SalesReportExporter, CustomerReportExporter,
-        InventoryReportExporter, ProductReportExporter
-    )
-    from django.utils import timezone
-    from datetime import datetime, timedelta
-    
-    report_type = request.GET.get('type', 'sales')
-    export_format = request.GET.get('format', 'pdf')
-    date_from = request.GET.get('date_from')
-    date_to = request.GET.get('date_to')
-    low_stock_threshold = int(request.GET.get('threshold', 10))
-    
-    # Parse date range
-    if date_from and date_to:
-        try:
-            start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-            date_range = f"{start_date.strftime('%B %d, %Y')} - {end_date.strftime('%B %d, %Y')}"
-        except ValueError:
-            end_date = timezone.now().date()
-            start_date = end_date - timedelta(days=30)
-            date_range = f"{start_date.strftime('%B %d, %Y')} - {end_date.strftime('%B %d, %Y')}"
-    else:
-        end_date = timezone.now().date()
-        start_date = end_date - timedelta(days=30)
-        date_range = f"{start_date.strftime('%B %d, %Y')} - {end_date.strftime('%B %d, %Y')}"
-    
-    # Generate filename
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"{report_type}_report_{timestamp}"
-    
-    if report_type == 'sales':
-        # Get sales data
-        orders = models.Orders.objects.filter(
-            created_at__date__range=[start_date, end_date],
-            status='Delivered'
-        ).select_related('customer')
-        
-        # Calculate daily sales
-        daily_sales = []
-        current_date = start_date
-        while current_date <= end_date:
-            day_orders = orders.filter(created_at__date=current_date)
-            daily_revenue = sum(
-                sum(item.price * item.quantity for item in models.OrderItem.objects.filter(order=order))
-                for order in day_orders
-            )
-            daily_items = sum(
-                sum(item.quantity for item in models.OrderItem.objects.filter(order=order))
-                for order in day_orders
-            )
-            
-            daily_sales.append({
-                'date': current_date,
-                'orders': day_orders.count(),
-                'revenue': daily_revenue,
-                'items': daily_items
-            })
-            current_date += timedelta(days=1)
-        
-        if export_format == 'csv':
-            data = SalesReportExporter.get_sales_csv_data(orders, daily_sales)
-            return ReportExporter.export_to_csv(data, filename)
-        elif export_format == 'excel':
-            data = SalesReportExporter.get_sales_csv_data(orders, daily_sales)
-            return ReportExporter.export_to_excel(data, filename)
-        elif export_format == 'pdf':
-            context = SalesReportExporter.get_sales_pdf_context(orders, daily_sales, date_range)
-            return ReportExporter.export_to_pdf('ecom/reports/sales_report_pdf.html', context, filename)
-    
-    elif report_type == 'customer':
-        # Get customer data
-        customers = models.Customer.objects.filter(
-            user__date_joined__date__range=[start_date, end_date]
-        ).select_related('user')
-        
-        # Calculate registration trends
-        registration_data = []
-        current_date = start_date
-        while current_date <= end_date:
-            count = models.Customer.objects.filter(
-                user__date_joined__date=current_date
-            ).count()
-            registration_data.append({
-                'date': current_date,
-                'count': count
-            })
-            current_date += timedelta(days=1)
-        
-        if export_format == 'csv':
-            data = CustomerReportExporter.get_customer_csv_data(customers, registration_data)
-            return ReportExporter.export_to_csv(data, filename)
-        elif export_format == 'excel':
-            data = CustomerReportExporter.get_customer_csv_data(customers, registration_data)
-            return ReportExporter.export_to_excel(data, filename)
-        elif export_format == 'pdf':
-            # Prepare context for PDF
-            total_customers = models.Customer.objects.count()
-            new_customers = customers.count()
-            active_customers = models.Customer.objects.filter(
-                orders__created_at__date__range=[start_date, end_date]
-            ).distinct().count()
-            
-            # Calculate average customer value
-            all_customers = models.Customer.objects.all()
-            total_spent = sum(
-                sum(order.total for order in customer.orders.all())
-                for customer in all_customers
-            )
-            avg_customer_value = total_spent / total_customers if total_customers > 0 else 0
-            
-            # Get top customers with spending data
-            customers_with_spending = []
-            for customer in customers[:20]:  # Limit for PDF
-                total_orders = customer.orders.count()
-                total_spent = sum(order.total for order in customer.orders.all())
-                customer.total_orders = total_orders
-                customer.total_spent = total_spent
-                customers_with_spending.append(customer)
-            
-            context = {
-                'report_title': 'Customer Analytics Report',
-                'date_range': date_range,
-                'generated_at': datetime.now(),
-                'summary': {
-                    'total_customers': total_customers,
-                    'new_customers': new_customers,
-                    'active_customers': active_customers,
-                    'avg_customer_value': avg_customer_value,
-                },
-                'registration_data': registration_data,
-                'customers': customers_with_spending,
-            }
-            return ReportExporter.export_to_pdf('ecom/reports/customer_report_pdf.html', context, filename)
-    
-    elif report_type == 'inventory':
-        # Get inventory data
-        products = models.Product.objects.all().select_related('category')
-        
-        if export_format == 'csv':
-            data = InventoryReportExporter.get_inventory_csv_data(products, low_stock_threshold)
-            return ReportExporter.export_to_csv(data, filename)
-        elif export_format == 'excel':
-            data = InventoryReportExporter.get_inventory_csv_data(products, low_stock_threshold)
-            return ReportExporter.export_to_excel(data, filename)
-        elif export_format == 'pdf':
-            # Calculate summary metrics
-            total_products = products.count()
-            total_value = sum(product.stock * product.price for product in products)
-            low_stock_items = products.filter(stock__lte=low_stock_threshold, stock__gt=0)
-            out_of_stock_items = products.filter(stock=0)
-            
-            # Add stock value to products
-            products_with_value = []
-            for product in products[:50]:  # Limit for PDF
-                product.stock_value = product.stock * product.price
-                products_with_value.append(product)
-            
-            context = {
-                'report_title': 'Inventory Report',
-                'generated_at': datetime.now(),
-                'low_stock_threshold': low_stock_threshold,
-                'summary': {
-                    'total_products': total_products,
-                    'total_value': total_value,
-                    'low_stock_count': low_stock_items.count(),
-                    'out_of_stock_count': out_of_stock_items.count(),
-                },
-                'low_stock_items': low_stock_items[:20],
-                'products': products_with_value,
-            }
-            return ReportExporter.export_to_pdf('ecom/reports/inventory_report_pdf.html', context, filename)
-    
-    elif report_type == 'product':
-        # Get product data
-        products = models.Product.objects.all().select_related('category')
-        
-        if export_format == 'csv':
-            data = ProductReportExporter.get_product_csv_data(products)
-            return ReportExporter.export_to_csv(data, filename)
-        elif export_format == 'excel':
-            data = ProductReportExporter.get_product_csv_data(products)
-            return ReportExporter.export_to_excel(data, filename)
-        elif export_format == 'pdf':
-            # Calculate product metrics
-            products_with_metrics = []
-            total_revenue = 0
-            total_sold = 0
-            total_ratings = 0
-            rating_count = 0
-            
-            for product in products:
-                # Calculate sales metrics
-                order_items = models.OrderItem.objects.filter(product=product)
-                product_sold = sum(item.quantity for item in order_items)
-                product_revenue = sum(item.quantity * item.price for item in order_items)
-                
-                # Calculate average rating
-                reviews = product.productreview_set.all()
-                avg_rating = sum(review.rating for review in reviews) / len(reviews) if reviews else 0
-                
-                product.total_sold = product_sold
-                product.revenue = product_revenue
-                product.avg_rating = avg_rating
-                
-                products_with_metrics.append(product)
-                total_revenue += product_revenue
-                total_sold += product_sold
-                
-                if avg_rating > 0:
-                    total_ratings += avg_rating
-                    rating_count += 1
-            
-            # Sort by revenue for top selling
-            top_selling = sorted(products_with_metrics, key=lambda p: p.revenue, reverse=True)[:10]
-            
-            avg_rating = total_ratings / rating_count if rating_count > 0 else 0
-            
-            context = {
-                'report_title': 'Product Performance Report',
-                'date_range': date_range,
-                'generated_at': datetime.now(),
-                'summary': {
-                    'total_products': products.count(),
-                    'products_sold': total_sold,
-                    'avg_rating': avg_rating,
-                    'total_revenue': total_revenue,
-                },
-                'top_selling': top_selling,
-                'products': products_with_metrics[:50],  # Limit for PDF
-            }
-            return ReportExporter.export_to_pdf('ecom/reports/product_report_pdf.html', context, filename)
-    
-    # Default fallback
-    return HttpResponse('Invalid report type or format', status=400)
-
-
-@any_report_permission_required('generate')
-def generate_report_view(request):
-    """Generate a new report and save it to the database"""
-    if request.method == 'POST':
-        report_type = request.POST.get('report_type')
-        title = request.POST.get('title')
-        date_from = request.POST.get('date_from')
-        date_to = request.POST.get('date_to')
-        export_format = request.POST.get('export_format', 'pdf')
-        
-        # Get or create report template
-        template, created = models.ReportTemplate.objects.get_or_create(
-            report_type=report_type,
-            defaults={
-                'name': f"Default {report_type.title()} Report",
-                'created_by': request.user
-            }
-        )
-        
-        # Create generated report record
-        generated_report = models.GeneratedReport.objects.create(
-            template=template,
-            title=title,
-            generated_by=request.user,
-            date_from=datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None,
-            date_to=datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None,
-            export_format=export_format,
-            filters=request.POST.dict()
-        )
-        
-        # In a real implementation, you would generate the actual report file here
-        # and update the generated_report with file_path and status
-        
-        return JsonResponse({
-            'status': 'success',
-            'report_id': generated_report.id,
-            'message': 'Report generation started'
-        })
-    
-    return JsonResponse({'error': 'Invalid request method'}, status=405)

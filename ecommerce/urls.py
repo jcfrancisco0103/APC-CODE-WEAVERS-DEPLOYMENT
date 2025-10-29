@@ -84,8 +84,6 @@ urlpatterns = [
     path('update-order/<int:pk>', views.update_order_view,name='update-order'),
 
 
-
-
     # Named route for signup to fix NoReverseMatch in templates
     path('customersignup', views.customer_signup_view, name='signup'),
     path('customerlogin', LoginView.as_view(template_name='ecom/customerlogin.html'),name='customerlogin'),
@@ -195,18 +193,14 @@ urlpatterns = [
     # Admin Transactions
     path('admin-transactions/', views.admin_transactions_view, name='admin-transactions'),
 
-    # Report Management URLs
-    path('reports/', views.reports_dashboard_view, name='reports-dashboard'),
-    path('reports/sales/', views.sales_report_view, name='sales-report'),
-    path('reports/customer/', views.customer_report_view, name='customer-report'),
-    path('reports/inventory/', views.inventory_report_view, name='inventory-report'),
-    path('reports/product/', views.product_report_view, name='product-report'),
-    path('reports/export/', views.export_report_view, name='export-report'),
-    path('reports/generate/', views.generate_report_view, name='generate-report'),
-
     # Custom Jersey Order API
     path('api/add-custom-order/', views.add_custom_order, name='api-add-custom-order'),
 
+    # API Welcome endpoint with logging
+    path('api/welcome/', views.api_welcome, name='api-welcome'),
+
+    path('admin-reports', views.admin_report_view, name='admin-reports'),
+    path('admin/customer-transactions/<int:customer_id>/', views.get_customer_transactions, name='customer-transactions'),
 ]
 
 if settings.DEBUG:
