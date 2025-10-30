@@ -17,11 +17,18 @@ body {
 }
 
 #navbar {
-  background-color: #000000;
+  background-color: white;
   color: rgb(0, 0, 0);
+  position: sticky;  /* makes it stick to the top */
+  top: 0;            /* position at the top */
+  z-index: 1000;     /* keeps it above other elements */
+  padding
 }
 
 .row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding-top: 10px;
     padding-right: 50px
 }
@@ -56,32 +63,35 @@ body {
 }
 
 .cart-button {
-  background-color: #0066cc;
+  background-color: #00cc66;
   box-shadow: 0 4px 4px 0 rgb(0 0 0 / 23%), inset 1px 1px 0 0 hsl(0deg 0% 100% / 20%);
-  padding: 10px 0;
+  padding: 0 12px;
   text-align: center;
   height: 41px;
   border-radius: 2px;
   font-weight: 500;
-  width: 120px;
-  display: inline-block;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
   color: #FFFFFF;
   text-decoration: none;
   border: none;
   outline: none;
   transition: background-color 0.3s ease;
+  margin-left: 10px;
 }
 
 .cart-button:hover {
-  background-color: #00cc66;
-  border-color: #00cc66;
+  opacity: .5;
   text-decoration: none;
   color: #fff;
   cursor: pointer;
+  
 }
 
 .cart-button:active {
   opacity: 0.7;
+  text-decoration: none;
 }
 
 .cart-svg {
@@ -110,8 +120,8 @@ body {
 
 .upper-links {
     display: inline-block;
-    padding: 0 11px;
-    line-height: 23px;
+    padding: 0;
+    line-height: normal;
     font-family: 'Roboto', sans-serif;
     letter-spacing: 0;
     color: inherit;
@@ -131,7 +141,7 @@ body {
 }
 
 .dropdown:hover .links {
-    color: #fff;
+    color: #333;
     opacity: 0.8
 }
 
@@ -235,12 +245,36 @@ body {
 }
 
 .links {
-    color: #fff;
-    text-decoration: none
+    color: black;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: medium;
+    display: inline-flex;
+    align-items: center;
+    height: 41px;
+    padding: 0 12px;
+    margin-right: 10px;
+    margin-left: 20px;
+}
+
+.navbar-brand-text {
+    font-weight: 700;
+    font-size: 22px;
+    color: black;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    height: 41px;
+    padding: 0 12px;
+}
+
+.navbar-brand-text:hover {
+    color: rgb(100, 99, 99);
+    text-decoration: none;
 }
 
 .links:hover {
-    color: #fff;
+    color: rgb(100, 99, 99);
     text-decoration: none
 }
 
@@ -280,8 +314,9 @@ body {
         -----------------------------------------*/
         footer {
           padding: 0px 0px 0px 0px;
-          background-color: black;
+          background-color: rgb(255, 255, 255);
           margin: 0px;
+          border-color: gray
         }
 
 
@@ -302,7 +337,7 @@ body {
       }
 
         .fa:hover {
-          opacity: 0.5;
+          opacity: 0.3;
           text-decoration: none;
         }
 
@@ -380,8 +415,10 @@ body {
 <div id="navbar">
     <div class="container">
         <div class="row row1">
+            <a href="/customer-home" class="navbar-brand-text">WorksTeamWear</a>
             <ul class="largenav pull-right">
 
+                
                 <li class="upper-links"><a class="links" href="/customer-home">Home</a></li>
                 <li class="upper-links dropdown">
           <a class="links dropdown-toggle" href="#" id="orderDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -432,38 +469,21 @@ body {
                 <li class="upper-links">
                   <form method="post" action="{% url 'logout' %}" style="margin: 0; padding: 0;">
                       {% csrf_token %}
-                      <button type="submit" class="links" style="background: none; border: none; padding: 0; margin: 0; font-size: 12px;">Logout</button>
+                      <button type="submit" class="links" style="background: none; border: none; padding: 0; margin: 0; font-weight: medium; font-size: 15px;">Logout</button>
                   </form>
               </li>
+
+                <li class="upper-links">
+                    <a class="links cart-button" href="/cart">
+                        <svg class="cart-svg" width="16" height="16" viewBox="0 0 16 16">
+                            <path d="M15.32 2.405H4.887C3 2.405 2.46.805 2.46.805L2.257.21C2.208.085 2.083 0 1.946 0H.336C.1 0-.064.24.024.46l.644 1.945L3.11 9.767c.047.137.175.23.32.23h8.418l-.493 1.958H3.768l.002.003c-.017 0-.033-.003-.05-.003-1.06 0-1.92.86-1.92 1.92s.86 1.92 1.92 1.92c.99 0 1.805-.75 1.91-1.712l5.55.076c.12.922.91 1.636 1.867 1.636 1.04 0 1.885-.844 1.885-1.885 0-.866-.584-1.593-1.38-1.814l2.423-8.832c.12-.433-.206-.86-.655-.86" fill="#fff"></path>
+                        </svg>
+                        <span class="item-number">{{ product_count_in_cart }}</span>
+                    </a>
+                </li>
                 
             </ul>
         </div>
-        
-        <div class="logo">
-            <div class="col-sm-3">
-              <h2 style="margin:0px;">
-                <a style="text-decoration:none; color:white;" href="/">
-                  <img src="{% static 'images/new logo.png' %}" alt="WorksTeamWear Logo" class="logo">
-                </a>
-              </h2>
-            </div>
-
-            <div class="navbar-search smallsearch col-sm-7 col-xs-11">
-              <form  action="/search" method="get">
-                <div class="row"> <input class="navbar-input col-xs-11" type="search" placeholder="Search for Products, Brands and more" name="query" id="query">
-                  <button class="navbar-button col-xs-1" type="submit">
-                    <svg width="15px" height="15px">
-                            <path d="M11.618 9.897l4.224 4.212c.092.09.1.23.02.312l-1.464 1.46c-.08.08-.222.072-.314-.02L9.868 11.66M6.486 10.9c-2.42 0-4.38-1.955-4.38-4.367 0-2.413 1.96-4.37 4.38-4.37s4.38 1.957 4.38 4.37c0 2.412-1.96 4.368-4.38 4.368m0-10.834C2.904.066 0 2.96 0 6.533 0 10.105 2.904 13 6.486 13s6.487-2.895 6.487-6.467c0-3.572-2.905-6.467-6.487-6.467 "></path>
-                    </svg>
-                  </button>
-                </div>
-              </form>
-            </div>
-
-
-            <div class="cart1 largenav col-sm-2"> <a class="cart-button" href="/cart"> <svg class="cart-svg " width="16 " height="16 " viewBox="0 0 16 16 ">
-                        <path d="M15.32 2.405H4.887C3 2.405 2.46.805 2.46.805L2.257.21C2.208.085 2.083 0 1.946 0H.336C.1 0-.064.24.024.46l.644 1.945L3.11 9.767c.047.137.175.23.32.23h8.418l-.493 1.958H3.768l.002.003c-.017 0-.033-.003-.05-.003-1.06 0-1.92.86-1.92 1.92s.86 1.92 1.92 1.92c.99 0 1.805-.75 1.91-1.712l5.55.076c.12.922.91 1.636 1.867 1.636 1.04 0 1.885-.844 1.885-1.885 0-.866-.584-1.593-1.38-1.814l2.423-8.832c.12-.433-.206-.86-.655-.86 " fill="#fff "></path>
-                    </svg> Cart <span class="item-number ">{{ product_count_in_cart }}</span> </a> </div>
         </div>
     </div>
 </div>
@@ -485,7 +505,7 @@ body {
   <div class="container">
     <div class="row">
       <div class="col-md-12 col-sm-12">
-        <div style="color:#ffffff; text-align:center" class="wow fadeInUp footer-copyright">
+        <div style="color: black; font-weight: medium; text-align:center" class="wow fadeInUp footer-copyright">
             &copy; 2025 WorksTeamWear PH</p>
         </div>
       </div>
