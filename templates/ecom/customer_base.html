@@ -383,17 +383,38 @@ body {
         /*---------------------------------------
            Social section
         -----------------------------------------*/
+        
+        /* Page layout for sticky footer */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .page-wrapper {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .content-wrapper {
+            flex: 1;
+            padding-bottom: 10px;
+        }
+        
         footer {
-          padding: 0px 0px 0px 0px;
+          padding: 10px 0px;
           background-color: rgb(255, 255, 255);
           margin: 0px;
-          border-color: gray
+          border-color: gray;
+          border-top: 1px solid #e9ecef;
+          margin-top: auto;
         }
 
 
         #ftr {
 
-          padding: 20px;
+          padding: 10px;
         }
 
         .fa {
@@ -483,6 +504,8 @@ body {
 </style>
 </head>
 <body>
+<div class="page-wrapper">
+    <div class="content-wrapper">
 <div id="navbar">
     <div class="container">
         <div class="navbar-container">
@@ -570,7 +593,7 @@ body {
 
 {% endblock content %}
 <!-- content end-->
-<br><br><br>
+    </div> <!-- Close content-wrapper -->
 <footer>
   <br>
   
@@ -628,5 +651,6 @@ function selectSuggestion(text) {
     {% include 'ecom/customer_support_widget.html' %}
 {% endblock %}
 
+</div> <!-- Close page-wrapper -->
 </body>
 </html>

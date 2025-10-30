@@ -11,6 +11,8 @@
     
     <!-- Bootstrap for navbar consistency -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     
     <style>
         /* Override any development-specific styles */
@@ -26,30 +28,261 @@
         
         #root {
             width: 100%;
-            height: 100vh;
+            height: calc(100vh - 80px); /* Adjust for navbar height */
+        }
+
+        /* Navbar styles from customer_base.html */
+        .navbar-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 30px;
+            width: 100%;
+            gap: 40px;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .navbar-left {
+            flex: 0 0 auto;
+            min-width: 200px;
+        }
+
+        .navbar-middle {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            max-width: 600px;
+        }
+
+        .navbar-right {
+            flex: 0 0 auto;
+            min-width: 200px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            gap: 15px;
+        }
+
+        .nav-links .upper-links {
+            margin: 0;
+        }
+
+        .navbar-brand-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            text-decoration: none;
+        }
+
+        .navbar-brand-text:hover {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .links {
+            color: #333;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .links:hover {
+            color: #007bff;
+            text-decoration: none;
+            background-color: #f8f9fa;
+        }
+
+        .cart-button {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .cart-svg {
+            fill: #333;
+        }
+
+        .item-number {
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        /* Dropdown styles */
+        .dropdown-menu {
+            min-width: 250px;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+        }
+
+        .item-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .status-badge.pending {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-badge.receiving {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .status-badge.cancelled {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-badge.delivered {
+            background: #28a745;
+            color: white;
+        }
+
+        /* Responsive adjustments */
+        @media screen and (max-width: 768px) {
+            .navbar-container {
+                flex-direction: column;
+                padding: 10px 20px;
+            }
+            
+            .navbar-middle {
+                order: 3;
+                margin-top: 10px;
+                width: 100%;
+            }
+            
+            .navbar-right {
+                order: 2;
+                margin-top: 10px;
+            }
+            
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
     <div class="flex flex-col h-screen">
-        <!-- Navigation -->
-        <nav class="bg-gray-900">
-            <div class="max-w-7xl mx-auto px-4">
-                <div class="flex items-center justify-between h-16">
-                    <div class="text-white text-xl font-bold">WorksTeamWear</div>
-                    <div class="flex space-x-4">
-                        <a href="{% url 'customer-home' %}" class="text-gray-300 hover:text-white px-3 py-2">Home</a>
-                        <a href="{% url 'react_tshirt_designer' %}" class="text-white px-3 py-2">Jersey Designer</a>
-                        <a href="{% url 'about' %}" class="text-gray-300 hover:text-white px-3 py-2">About Us</a>
-                        {% if user.is_authenticated %}
-                            <a href="{% url 'logout' %}" class="text-gray-300 hover:text-white px-3 py-2">Logout</a>
-                        {% else %}
-                            <a href="{% url 'customerlogin' %}" class="text-gray-300 hover:text-white px-3 py-2">Login</a>
-                        {% endif %}
+        <!-- Navigation from customer_base.html -->
+        <div id="navbar">
+            <div class="container">
+                <div class="navbar-container">
+                    <!-- Left Section: Brand Text -->
+                    <div class="navbar-left">
+                        <a href="/customer-home" class="navbar-brand-text">WorkTeamWear</a>
+                    </div>
+                    
+                    <!-- Middle Section: Navigation Links -->
+                    <div class="navbar-middle">
+                        <ul class="nav-links">
+                            <li class="upper-links"><a class="links" href="/customer-home">Home</a></li>
+                            <li class="upper-links dropdown">
+                                <a class="links dropdown-toggle" href="#" id="orderDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    Track Orders
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="orderDropdown">
+                                    <a class="dropdown-item" href="{% url 'pending-orders' %}">
+                                        <div class="item-left">
+                                            <i class="fa fa-clock-o"></i>
+                                            <span>Pending Orders</span>
+                                        </div>
+                                        {% if pending_count %}<span class="status-badge pending">{{ pending_count }}</span>{% endif %}
+                                    </a>
+                                    <a class="dropdown-item" href="{% url 'to-ship-orders' %}">
+                                        <div class="item-left">
+                                            <i class="fa fa-ship" aria-hidden="true"></i>
+                                            <span>To Ship</span>
+                                        </div>
+                                    </a>
+                                    <a class="dropdown-item" href="{% url 'to-receive-orders' %}">
+                                        <div class="item-left">
+                                            <i class="fa fa-truck"></i>
+                                            <span>To Receive</span>
+                                        </div>
+                                        {% if to_receive_count %}<span class="status-badge receiving">{{ to_receive_count }}</span>{% endif %}
+                                    </a>
+                                    <a class="dropdown-item" href="{% url 'cancelled-orders' %}">
+                                        <div class="item-left">
+                                            <i class="fa fa-times-circle"></i>
+                                            <span>Cancelled</span>
+                                        </div>
+                                        {% if cancelled_count %}<span class="status-badge cancelled">{{ cancelled_count }}</span>{% endif %}
+                                    </a>
+                                    <a class="dropdown-item" href="{% url 'delivered-orders' %}">
+                                        <div class="item-left">
+                                            <i class="fa fa-check-circle"></i>
+                                            <span>Delivered</span>
+                                        </div>
+                                        {% if delivered_count %}<span class="status-badge delivered">{{ delivered_count }}</span>{% endif %}
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="upper-links"><a class="links" href="/wishlist">Wishlist</a></li>
+                            <li class="upper-links"><a class="links" href="/jersey-designer">3D Designer</a></li>
+                            <li class="upper-links"><a class="links" href="/about">About Us</a></li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Right Section: Cart, Profile, and Logout -->
+                    <div class="navbar-right">
+                        <ul class="nav-links">
+                            <li class="upper-links">
+                                <a class="links cart-button" href="/cart">
+                                    <svg class="cart-svg" width="16" height="16" viewBox="0 0 16 16">
+                                        <path d="M15.32 2.405H4.887C3 2.405 2.46.805 2.46.805L2.257.21C2.208.085 2.083 0 1.946 0H.336C.1 0-.064.24.024.46l.644 1.945L3.11 9.767c.047.137.175.23.32.23h8.418l-.493 1.958H3.768l.002.003c-.017 0-.033-.003-.05-.003-1.06 0-1.92.86-1.92 1.92s.86 1.92 1.92 1.92c.99 0 1.805-.75 1.91-1.712l5.55.076c.12.922.91 1.636 1.867 1.636 1.04 0 1.885-.844 1.885-1.885 0-.866-.584-1.593-1.38-1.814l2.423-8.832c.12-.433-.206-.86-.655-.86" fill="#333"></path>
+                                    </svg>
+                                    <span class="item-number">{{ product_count_in_cart|default:0 }}</span>
+                                </a>
+                            </li>
+                            <li class="upper-links"><a class="links" href="/my-profile">Profile</a></li>
+                            <li class="upper-links">
+                                {% if user.is_authenticated %}
+                                    <form method="post" action="{% url 'logout' %}" style="margin: 0; padding: 0;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="links" style="background: none; border: none; padding: 8px 12px; margin: 0; font-weight: 500; font-size: 15px; color: #333; border-radius: 4px; transition: all 0.3s ease;">Logout</button>
+                                    </form>
+                                {% else %}
+                                    <a class="links" href="{% url 'customerlogin' %}">Login</a>
+                                {% endif %}
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>
-        </nav>
+        </div>
 
         <!-- React App Container -->
         <div id="root" class="flex-1"></div>
@@ -156,6 +389,9 @@
         }
         setTimeout(checkForThreeJS, 1000);
     </script>
+    
+    <!-- Bootstrap JavaScript for dropdown functionality -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- React T-Shirt Designer JavaScript -->
     <script type="module" crossorigin src="{% static 'react-designer/assets/index-Vvv8ZYE_.js' %}?v={{ request.GET.ide_webview_request_time|default:'1' }}"></script>
