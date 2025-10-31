@@ -1,5 +1,5 @@
 {% extends 'ecom/customer_base.html' %} {% load static %} {% block content %}
-{% regroup data by 1.created_at.date as orders_by_date %}
+{% regroup orders_with_items by 1.created_at.date as orders_by_date %}
 
 <style media="screen">
     @import url('https://fonts.googleapis.com/css?family=Open+Sans&display=swap');
