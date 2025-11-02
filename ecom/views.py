@@ -4616,51 +4616,49 @@ def admin_report_view(request):
         month_name = calendar.month_abbr[target_month]
         monthly_labels.append(month_name)
 
-    # 8. Category Sales Data
-    category_data = []
+    # 8. Product Revenue Data (replace category chart with actual product revenue)
+    # Aggregate revenue per product from delivered orders
+    from django.db.models import Sum, F
+    product_revenue_qs = models.OrderItem.objects.filter(
+        order__status='Delivered'
+    ).values('product__name').annotate(
+        total=Sum(F('price') * F('quantity'))
+    ).order_by('-total')
+
+    # Use top 4 products for the chart
     category_labels = []
-    
-    # Get product categories and their sales
-    products_with_sales = models.Product.objects.filter(
-        orderitem__order__status='Delivered'
-    ).distinct()
-    
-    category_sales = {}
-    for product in products_with_sales:
-        category = product.category if hasattr(product, 'category') else 'Other'
-        if category not in category_sales:
-            category_sales[category] = 0
-        
-        # Calculate total sales for this category
-        category_orders = models.OrderItem.objects.filter(
-            product=product,
-            order__status='Delivered'
-        )
-        category_total = sum(item.price for item in category_orders)
-        category_sales[category] += float(category_total)
-    
-    # Convert to lists for chart
-    for category, sales in category_sales.items():
-        category_labels.append(category)
-        category_data.append(float(sales))
-    
-    # If no categories found, use default data
+    category_data = []
+    for row in product_revenue_qs[:4]:
+        category_labels.append(row['product__name'] or 'Unknown')
+        category_data.append(float(row['total'] or 0))
+
+    # Fallback if no data
     if not category_data:
-        category_labels = ['Clothing', 'Accessories', 'Shoes', 'Other']
-        category_data = [0, 0, 0, 0]
+        category_labels = ['No Data']
+        category_data = [0]
 
     # 9. Payment Method Data
-    payment_methods = ['GCash', 'Cash on Delivery', 'Bank Transfer']
+    # 9. Payment Method Data (accurate per database)
+    payment_method_map = [
+        ('cod', 'Cash on Delivery'),
+        ('paypal', 'PayPal'),
+        ('gcash', 'GCash'),
+    ]
+    payment_labels = [label for _, label in payment_method_map]
     payment_data = []
-    
-    for method in payment_methods:
-        # Count orders by payment method (you may need to adjust based on your payment field)
-        method_orders = models.Orders.objects.filter(
+
+    for code, _label in payment_method_map:
+        items_total = models.OrderItem.objects.filter(
+            order__status='Delivered',
+            order__payment_method=code
+        ).aggregate(total=Sum(F('price') * F('quantity')))['total'] or 0
+
+        fees_total = models.Orders.objects.filter(
             status='Delivered',
-            # Add payment method filter here if you have a payment_method field
-        )
-        method_total = sum(order.get_total_amount() for order in method_orders)
-        payment_data.append(float(method_total) // len(payment_methods))  # Distribute evenly for now
+            payment_method=code
+        ).aggregate(total=Sum('delivery_fee'))['total'] or 0
+
+        payment_data.append(float(items_total) + float(fees_total))
     
     # 10. Customer Growth Data (last 6 months)
     customer_growth_data = []
@@ -4700,6 +4698,45 @@ def admin_report_view(request):
             'status': getattr(customer, 'status', 'active')  # Default to active if no status field
         })
 
+    # 12. Order Status Distribution (dynamic)
+    order_status_labels = ['Pending', 'Processing', 'Order Confirmed', 'Out for Delivery', 'Delivered', 'Cancelled']
+    order_status_data = [
+        models.Orders.objects.filter(status=s).count() for s in order_status_labels
+    ]
+
+    # 13. Payment Status (dynamic)
+    payment_status_labels = ['Successful', 'Pending', 'Failed']
+    payment_status_data = [
+        models.Orders.objects.filter(status='Delivered').count(),
+        models.Orders.objects.filter(status__in=['Pending', 'Processing', 'Order Confirmed', 'Out for Delivery']).count(),
+        models.Orders.objects.filter(status='Cancelled').count(),
+    ]
+
+    # 14. Customer Segmentation
+    ninety_days_ago = timezone.now() - timedelta(days=90)
+    vip = 0
+    regular = 0
+    one_time = 0
+    at_risk = 0
+
+    for customer in models.Customer.objects.all():
+        cust_orders = models.Orders.objects.filter(customer=customer)
+        count = cust_orders.count()
+        last_order = cust_orders.order_by('-created_at').values_list('created_at', flat=True).first()
+        if count == 0:
+            continue
+        if count >= 10:
+            vip += 1
+        elif count == 1:
+            one_time += 1
+        else:
+            regular += 1
+        if last_order and last_order < ninety_days_ago:
+            at_risk += 1
+
+    customer_segment_labels = ['Regular', 'VIP', 'One-time', 'At Risk']
+    customer_segment_data = [regular, vip, one_time, at_risk]
+
     context = {
         'report_data': report_data,
         'total_sales': sum(record['amount'] for record in report_data),
@@ -4717,15 +4754,23 @@ def admin_report_view(request):
         # Sales trend data for chart - properly formatted for JavaScript
         'monthly_sales_data': json.dumps(monthly_sales_data or []),
         'monthly_labels': json.dumps(monthly_labels or []),
-        # Category data
+        # Category (Product revenue) data
         'category_data': json.dumps(category_data or []),
         'category_labels': json.dumps(category_labels or []),
-        # Payment method data
+        # Payment method data (accurate)
         'payment_data': json.dumps(payment_data or []),
-        'payment_labels': json.dumps(payment_methods or []),
+        'payment_labels': json.dumps(payment_labels or []),
         # Customer growth data
         'customer_growth_data': json.dumps(customer_growth_data or []),
         'customer_growth_labels': json.dumps(customer_growth_labels or []),
+        # Order & Payment status charts
+        'order_status_labels': json.dumps(order_status_labels or []),
+        'order_status_data': json.dumps(order_status_data or []),
+        'payment_status_labels': json.dumps(payment_status_labels or []),
+        'payment_status_data': json.dumps(payment_status_data or []),
+        # Customer segments
+        'customer_segment_labels': json.dumps(customer_segment_labels or []),
+        'customer_segment_data': json.dumps(customer_segment_data or []),
         
         # Product Analytics Data
         'top_selling_products': get_top_selling_products(),

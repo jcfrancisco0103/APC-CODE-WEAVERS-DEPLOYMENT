@@ -951,7 +951,7 @@
                                 beginAtZero: true,
                                 ticks: {
                                     callback: function(value) {
-                                        return 'R' + value.toLocaleString();
+                                        return '₱' + value.toLocaleString();
                                     }
                                 }
                             }
@@ -1052,15 +1052,15 @@
                 });
             }
 
-            // Customer Segment Chart
+            // Customer Segment Chart (dynamic)
             const customerSegmentCtx = document.getElementById('customerSegmentChart');
             if (customerSegmentCtx) {
                 charts.customerSegment = new Chart(customerSegmentCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Regular', 'VIP', 'One-time', 'At Risk'],
+                        labels: {{ customer_segment_labels|safe }},
                         datasets: [{
-                            data: [156, 45, 89, 52],
+                            data: {{ customer_segment_data|safe }},
                             backgroundColor: [
                                 '#0088FE',
                                 '#00C49F',
@@ -1081,15 +1081,15 @@
                 });
             }
 
-            // Order Status Chart
+            // Order Status Chart (dynamic)
             const orderStatusCtx = document.getElementById('orderStatusChart');
             if (orderStatusCtx) {
                 charts.orderStatus = new Chart(orderStatusCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Processing', 'Confirmed', 'Shipping', 'Delivered', 'Cancelled'],
+                        labels: {{ order_status_labels|safe }},
                         datasets: [{
-                            data: [45, 120, 185, 892, 42],
+                            data: {{ order_status_data|safe }},
                             backgroundColor: [
                                 '#0088FE',
                                 '#00C49F',
@@ -1111,23 +1111,18 @@
                 });
             }
 
-            // Revenue vs Expenses Chart
+            // Revenue Chart (monthly, dynamic)
             const revenueExpensesCtx = document.getElementById('revenueExpensesChart');
             if (revenueExpensesCtx) {
                 charts.revenueExpenses = new Chart(revenueExpensesCtx, {
                     type: 'bar',
                     data: {
-                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        labels: {{ monthly_labels|safe }},
                         datasets: [
                             {
                                 label: 'Revenue',
-                                data: [45000, 63500, 58200, 72800, 85600, 92400],
+                                data: {{ monthly_sales_data|safe }},
                                 backgroundColor: '#00C49F'
-                            },
-                            {
-                                label: 'Expenses',
-                                data: [28000, 38000, 35000, 42000, 48000, 52000],
-                                backgroundColor: '#FF8042'
                             }
                         ]
                     },
@@ -1148,15 +1143,15 @@
                 });
             }
 
-            // Payment Status Chart
+            // Payment Status Chart (dynamic)
             const paymentStatusCtx = document.getElementById('paymentStatusChart');
             if (paymentStatusCtx) {
                 charts.paymentStatus = new Chart(paymentStatusCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Successful', 'Pending', 'Failed'],
+                        labels: {{ payment_status_labels|safe }},
                         datasets: [{
-                            data: [1240, 32, 12],
+                            data: {{ payment_status_data|safe }},
                             backgroundColor: [
                                 '#0088FE',
                                 '#FFBB28',

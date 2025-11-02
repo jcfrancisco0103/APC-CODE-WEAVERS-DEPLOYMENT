@@ -329,38 +329,44 @@
         // Initialize Lucide icons
         lucide.createIcons();
 
-        // Search functionality
-        document.getElementById('order-search').addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            const rows = document.querySelectorAll('.order-row');
-            
-            rows.forEach(row => {
-                const orderId = row.dataset.orderId;
-                const customer = row.dataset.customer;
+        // Search functionality (guard if element missing)
+        const orderSearchInput = document.getElementById('order-search');
+        if (orderSearchInput) {
+            orderSearchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const rows = document.querySelectorAll('.order-row');
                 
-                if (orderId.includes(searchTerm) || customer.includes(searchTerm)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+                rows.forEach(row => {
+                    const orderId = row.dataset.orderId;
+                    const customer = row.dataset.customer;
+                    
+                    if (orderId.includes(searchTerm) || customer.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
             });
-        });
+        }
 
-        // Customer filter functionality
-        document.getElementById('customer-filter').addEventListener('change', function() {
-            const filterValue = this.value;
-            const rows = document.querySelectorAll('.order-row');
-            
-            rows.forEach(row => {
-                if (filterValue === '') {
-                    row.style.display = '';
-                } else {
-                    // Add your customer filtering logic here
-                    // For now, just show all rows
-                    row.style.display = '';
-                }
+        // Customer filter functionality (guard if control not present)
+        const customerFilter = document.getElementById('customer-filter');
+        if (customerFilter) {
+            customerFilter.addEventListener('change', function() {
+                const filterValue = this.value;
+                const rows = document.querySelectorAll('.order-row');
+                
+                rows.forEach(row => {
+                    if (filterValue === '') {
+                        row.style.display = '';
+                    } else {
+                        // Add your customer filtering logic here
+                        // For now, just show all rows
+                        row.style.display = '';
+                    }
+                });
             });
-        });
+        }
 
         // Select all functionality
         const selectAllCheckbox = document.getElementById('select-all-orders');
@@ -414,27 +420,30 @@
             window.location.href = currentUrl.toString();
         }
 
-        // Bulk update form submission
-        document.getElementById('bulk-update-form').addEventListener('submit', function(e) {
-            const checkedBoxes = document.querySelectorAll('.order-checkbox:checked');
-            if (checkedBoxes.length === 0) {
-                e.preventDefault();
-                alert('Please select at least one order to update.');
-                return false;
-            }
-            
-            const bulkStatus = document.querySelector('select[name="bulk_status"]').value;
-            if (!bulkStatus) {
-                e.preventDefault();
-                alert('Please select a status to update to.');
-                return false;
-            }
-            
-            if (!confirm(`Are you sure you want to update ${checkedBoxes.length} order(s) to "${bulkStatus}" status?`)) {
-                e.preventDefault();
-                return false;
-            }
-        });
+        // Bulk update form submission (guard for pages without the form)
+        const bulkUpdateForm = document.getElementById('bulk-update-form');
+        if (bulkUpdateForm) {
+            bulkUpdateForm.addEventListener('submit', function(e) {
+                const checkedBoxes = document.querySelectorAll('.order-checkbox:checked');
+                if (checkedBoxes.length === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one order to update.');
+                    return false;
+                }
+                
+                const bulkStatus = document.querySelector('select[name="bulk_status"]').value;
+                if (!bulkStatus) {
+                    e.preventDefault();
+                    alert('Please select a status to update to.');
+                    return false;
+                }
+                
+                if (!confirm(`Are you sure you want to update ${checkedBoxes.length} order(s) to "${bulkStatus}" status?`)) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+        }
 
         // Auto-hide success/error messages
         setTimeout(function() {
