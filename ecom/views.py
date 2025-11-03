@@ -4481,14 +4481,53 @@ def admin_report_view(request):
     """
     from django.db.models import Sum, Count, Avg, Q, F
     from datetime import timedelta
+    from datetime import datetime, date
     
     # Get filter parameters
     month = request.GET.get('month')
     year = request.GET.get('year')
+    # New date range parameters
+    date_range = request.GET.get('date_range')
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
     export = request.GET.get('export')
 
-    # Base queryset for completed orders
-    orders = models.Orders.objects.filter(status='Delivered').select_related('customer__user')
+    # Determine date window
+    # Default: This month
+    start_date: date = None
+    end_date: date = None
+
+    now = timezone.now()
+    if date_range == 'week':
+        # Last 7 days including today
+        end_date = now.date()
+        start_date = (now - timedelta(days=6)).date()
+    elif date_range == 'month':
+        end_date = now.date()
+        start_date = now.replace(day=1).date()
+    elif date_range == 'quarter':
+        # Last 3 full months (approximate 90 days)
+        end_date = now.date()
+        start_date = (now - timedelta(days=89)).date()
+    elif date_range == 'year':
+        end_date = now.date()
+        start_date = now.replace(month=1, day=1).date()
+    elif date_range == 'custom' and start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            # Fallback to month if invalid
+            end_date = now.date()
+            start_date = now.replace(day=1).date()
+    else:
+        # Fallback: this month
+        end_date = now.date()
+        start_date = now.replace(day=1).date()
+
+    # Base queryset for completed orders within time window
+    time_filter = Q(created_at__date__gte=start_date, created_at__date__lte=end_date)
+    orders = models.Orders.objects.filter(status='Delivered').filter(time_filter).select_related('customer__user')
 
     # Apply filters
     if month:
@@ -4532,17 +4571,19 @@ def admin_report_view(request):
     # ENHANCED TOTAL SALES CALCULATION - More accurate database reflection
     
     # 1. Total Revenue - Enhanced calculation using database aggregation
-    # Calculate from OrderItems for more accuracy
+    # Calculate from OrderItems for more accuracy (within time window)
     total_revenue_from_items = models.OrderItem.objects.filter(
-        order__status='Delivered'
+        order__status='Delivered',
+        order__created_at__date__gte=start_date,
+        order__created_at__date__lte=end_date,
     ).aggregate(
         total=Sum(F('price') * F('quantity'))
     )['total'] or 0
     
-    # Add delivery fees from delivered orders
+    # Add delivery fees from delivered orders (within time window)
     total_delivery_fees = models.Orders.objects.filter(
         status='Delivered'
-    ).aggregate(
+    ).filter(time_filter).aggregate(
         total=Sum('delivery_fee')
     )['total'] or 0
     
@@ -4550,14 +4591,14 @@ def admin_report_view(request):
     total_revenue = float(total_revenue_from_items) + float(total_delivery_fees)
     
     # Alternative calculation using get_total_amount method for comparison
-    delivered_orders = models.Orders.objects.filter(status='Delivered')
+    delivered_orders = models.Orders.objects.filter(status='Delivered').filter(time_filter)
     total_revenue_alt = float(sum(order.get_total_amount() for order in delivered_orders))
     
     # 2. Total Orders - count of all orders (not just delivered)
-    total_orders = models.Orders.objects.count()
+    total_orders = models.Orders.objects.filter(time_filter).count()
     
     # 3. Total Delivered Orders - for accurate calculations
-    total_delivered_orders = models.Orders.objects.filter(status='Delivered').count()
+    total_delivered_orders = models.Orders.objects.filter(status='Delivered').filter(time_filter).count()
     
     # 4. Total Customers - count of unique customers
     total_customers = models.Customer.objects.count()
@@ -4578,49 +4619,50 @@ def admin_report_view(request):
     
     # 8. Active Users - customers who have logged in or placed orders in the last 30 days
     thirty_days_ago = timezone.now() - timedelta(days=30)
+    # Active users in selected window OR recent activity
     active_users = models.Customer.objects.filter(
-        Q(user__last_login__gte=thirty_days_ago) | 
-        Q(orders__created_at__gte=thirty_days_ago)
+        Q(orders__created_at__date__gte=start_date, orders__created_at__date__lte=end_date) |
+        Q(user__last_login__gte=thirty_days_ago)
     ).distinct().count()
 
     # 9. Monthly Sales Data for Sales Trend Chart (last 12 months) - Enhanced calculation
     from datetime import datetime
     import calendar
     
+    # Monthly Sales Data within selected window
     current_date = timezone.now()
     monthly_sales_data = []
     monthly_labels = []
     
-    for i in range(11, -1, -1):  # Last 12 months
-        # Calculate the target month and year
-        target_month = current_date.month - i
-        target_year = current_date.year
-        
-        # Handle year rollover
-        while target_month <= 0:
-            target_month += 12
-            target_year -= 1
-        
-        # Get orders for this month
+    # Build month list from start_date to end_date
+    import calendar
+    cursor_year = start_date.year
+    cursor_month = start_date.month
+    end_year = end_date.year
+    end_month = end_date.month
+    while (cursor_year < end_year) or (cursor_year == end_year and cursor_month <= end_month):
         monthly_orders = models.Orders.objects.filter(
             status='Delivered',
-            created_at__year=target_year,
-            created_at__month=target_month
-        )
-        
-        # Calculate total sales for this month
+            created_at__year=cursor_year,
+            created_at__month=cursor_month,
+        ).filter(time_filter)
         monthly_total = sum(order.get_total_amount() for order in monthly_orders)
         monthly_sales_data.append(float(monthly_total))
-        
-        # Create month label (e.g., "Jan", "Feb")
-        month_name = calendar.month_abbr[target_month]
+        month_name = calendar.month_abbr[cursor_month]
         monthly_labels.append(month_name)
+        # increment month
+        cursor_month += 1
+        if cursor_month > 12:
+            cursor_month = 1
+            cursor_year += 1
 
     # 8. Product Revenue Data (replace category chart with actual product revenue)
     # Aggregate revenue per product from delivered orders
     from django.db.models import Sum, F
     product_revenue_qs = models.OrderItem.objects.filter(
-        order__status='Delivered'
+        order__status='Delivered',
+        order__created_at__date__gte=start_date,
+        order__created_at__date__lte=end_date,
     ).values('product__name').annotate(
         total=Sum(F('price') * F('quantity'))
     ).order_by('-total')
@@ -4650,13 +4692,15 @@ def admin_report_view(request):
     for code, _label in payment_method_map:
         items_total = models.OrderItem.objects.filter(
             order__status='Delivered',
-            order__payment_method=code
+            order__payment_method=code,
+            order__created_at__date__gte=start_date,
+            order__created_at__date__lte=end_date,
         ).aggregate(total=Sum(F('price') * F('quantity')))['total'] or 0
 
         fees_total = models.Orders.objects.filter(
             status='Delivered',
-            payment_method=code
-        ).aggregate(total=Sum('delivery_fee'))['total'] or 0
+            payment_method=code,
+        ).filter(time_filter).aggregate(total=Sum('delivery_fee'))['total'] or 0
 
         payment_data.append(float(items_total) + float(fees_total))
     
@@ -4685,7 +4729,7 @@ def admin_report_view(request):
     # 11. Get customers list with their order statistics
     customers_list = []
     for customer in models.Customer.objects.select_related('user').all():
-        customer_orders = models.Orders.objects.filter(customer=customer, status='Delivered')
+        customer_orders = models.Orders.objects.filter(customer=customer, status='Delivered').filter(time_filter)
         total_orders = customer_orders.count()
         total_spending = sum(order.get_total_amount() for order in customer_orders)
         
@@ -4701,15 +4745,15 @@ def admin_report_view(request):
     # 12. Order Status Distribution (dynamic)
     order_status_labels = ['Pending', 'Processing', 'Order Confirmed', 'Out for Delivery', 'Delivered', 'Cancelled']
     order_status_data = [
-        models.Orders.objects.filter(status=s).count() for s in order_status_labels
+        models.Orders.objects.filter(status=s).filter(time_filter).count() for s in order_status_labels
     ]
 
     # 13. Payment Status (dynamic)
     payment_status_labels = ['Successful', 'Pending', 'Failed']
     payment_status_data = [
-        models.Orders.objects.filter(status='Delivered').count(),
-        models.Orders.objects.filter(status__in=['Pending', 'Processing', 'Order Confirmed', 'Out for Delivery']).count(),
-        models.Orders.objects.filter(status='Cancelled').count(),
+        models.Orders.objects.filter(status='Delivered').filter(time_filter).count(),
+        models.Orders.objects.filter(status__in=['Pending', 'Processing', 'Order Confirmed', 'Out for Delivery']).filter(time_filter).count(),
+        models.Orders.objects.filter(status='Cancelled').filter(time_filter).count(),
     ]
 
     # 14. Customer Segmentation
@@ -4720,7 +4764,7 @@ def admin_report_view(request):
     at_risk = 0
 
     for customer in models.Customer.objects.all():
-        cust_orders = models.Orders.objects.filter(customer=customer)
+        cust_orders = models.Orders.objects.filter(customer=customer).filter(time_filter)
         count = cust_orders.count()
         last_order = cust_orders.order_by('-created_at').values_list('created_at', flat=True).first()
         if count == 0:
