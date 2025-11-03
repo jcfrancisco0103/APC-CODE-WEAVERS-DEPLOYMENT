@@ -651,169 +651,9 @@ def afterlogin_view(request):
 #---------------------------------------------------------------------------------
 @admin_required
 def admin_dashboard_view(request):
-    # for cards on dashboard
-    customercount = models.Customer.objects.all().count()
-    productcount = models.Product.objects.all().count()
-    pending_ordercount = models.Orders.objects.filter(status='Pending').count()
-
-    # Prepare users data for Users section
-    customers = models.Customer.objects.select_related('user').all()
-    users = []
-    for c in customers:
-        users.append({
-            'id': c.id,  # changed from c.get_id
-            'name': c.get_name if hasattr(c, 'get_name') else str(c),
-            'address': c.get_full_address,
-            'phone': c.mobile,
-            'status': c.status,
-        })
-
-    # Calculate sales analytics
-    from django.utils import timezone
-    from datetime import timedelta
-    current_date = timezone.now()
-    last_quarter_start = current_date - timedelta(days=90)
-    last_month_start = current_date - timedelta(days=30)
-
-    delivered_orders = models.Orders.objects.filter(status='Delivered').order_by('-created_at')[:10]
-    recent_orders = models.Orders.objects.all().order_by('-created_at')[:10]
-
-    # Calculate total sales and period-specific sales
-    all_delivered_orders = models.Orders.objects.filter(status='Delivered')
-    total_sales = 0
-    last_quarter_sales = 0
-    last_month_sales = 0
-
-    # Create a dictionary to track product sales
-    product_sales = {}
-
-    for order in all_delivered_orders:
-        order_items = models.OrderItem.objects.filter(order=order)
-        if not order_items.exists():
-            continue  # Skip orders with no items
-        
-        order_total = 0
-        for item in order_items:
-            item_total = item.price * item.quantity
-            order_total += item_total
-            
-            # Track product-wise sales
-            if item.product.id not in product_sales:
-                product_sales[item.product.id] = {
-                    'name': item.product.name,
-                    'quantity_sold': 0,
-                    'total_revenue': 0
-                }
-            product_sales[item.product.id]['quantity_sold'] += item.quantity
-            product_sales[item.product.id]['total_revenue'] += item_total
-        
-        total_sales += order_total
-        
-        # Calculate period-specific sales
-        order_date = order.created_at
-        if order_date >= last_quarter_start:
-            last_quarter_sales += order_total
-            if order_date >= last_month_start:
-                last_month_sales += order_total
-
-    for order in delivered_orders:
-        order_items = models.OrderItem.objects.filter(order=order)
-        if not order_items.exists():
-            continue  # Skip orders with no items
-        
-        order_total = sum(item.price * item.quantity for item in order_items)
-        order.total_price = order_total  # Add total_price attribute
-        order.order_items = order_items  # Add order_items for template access
-
-    # Sort products by sales performance
-    sorted_products = sorted(product_sales.values(), key=lambda x: x['quantity_sold'], reverse=True)
-    fast_moving_products = sorted_products[:5] if sorted_products else []
-    slow_moving_products = sorted_products[-5:] if len(sorted_products) >= 5 else []
-
-    # Format sales numbers with commas
-    formatted_total_sales = '{:,.2f}'.format(total_sales)
-    formatted_last_quarter_sales = '{:,.2f}'.format(last_quarter_sales)
-    formatted_last_month_sales = '{:,.2f}'.format(last_month_sales)
-
-    # Calculate monthly sales for current year
-    from django.db.models.functions import ExtractMonth, ExtractYear
-    from django.db.models import Sum, F
-
-    current_year = current_date.year
-    # Get monthly sales by aggregating OrderItem data instead of Orders
-    monthly_sales_qs = models.OrderItem.objects.filter(
-        order__status='Delivered',
-        order__created_at__year=current_year
-    ).annotate(
-        month=ExtractMonth('order__created_at')
-    ).values('month').annotate(
-        total=Sum(F('price') * F('quantity'))
-    ).order_by('month')
-
-    # Initialize list with 12 zeros for each month
-    monthly_sales = [0] * 12
-    for entry in monthly_sales_qs:
-        month_index = entry['month'] - 1
-        monthly_sales[month_index] = float(entry['total']) if entry['total'] else 0
-
-    # Calculate dashboard stats for different time periods
-    today_start = current_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = current_date - timedelta(days=7)
-    month_start = current_date - timedelta(days=30)
-    
-    # Calculate transactions for different periods
-    today_orders = models.OrderItem.objects.filter(
-        order__status='Delivered',
-        order__created_at__gte=today_start
-    )
-    today_transactions = sum(item.price * item.quantity for item in today_orders)
-    
-    week_orders = models.OrderItem.objects.filter(
-        order__status='Delivered',
-        order__created_at__gte=week_start
-    )
-    week_transactions = sum(item.price * item.quantity for item in week_orders)
-    
-    month_orders = models.OrderItem.objects.filter(
-        order__status='Delivered',
-        order__created_at__gte=month_start
-    )
-    month_transactions = sum(item.price * item.quantity for item in month_orders)
-    
-    # Calculate user stats
-    today_users = models.Customer.objects.filter(user__date_joined__gte=today_start).count()
-    week_users = models.Customer.objects.filter(user__date_joined__gte=week_start).count()
-    month_users = models.Customer.objects.filter(user__date_joined__gte=month_start).count()
-    total_users = customercount
-    non_users = 0  # Placeholder for non-users count
-    
-    dashboard_stats = {
-        'new_users_today': today_users,
-        'new_users_week': week_users,
-        'new_users_month': month_users,
-        'total_users': total_users,
-        'transactions_today': '{:,.2f}'.format(today_transactions),
-        'transactions_week': '{:,.2f}'.format(week_transactions),
-        'transactions_month': '{:,.2f}'.format(month_transactions),
-        'non_users': non_users,
-    }
-
-    mydict = {
-        'customercount': customercount,
-        'productcount': productcount,
-        'ordercount': pending_ordercount,
-        'total_sales': formatted_total_sales,
-        'last_quarter_sales': formatted_last_quarter_sales,
-        'last_month_sales': formatted_last_month_sales,
-        'fast_moving_products': fast_moving_products,
-        'slow_moving_products': slow_moving_products,
-        'recent_orders': recent_orders,
-        'current_date': current_date.strftime('%Y-%m-%d'),
-        'monthly_sales': monthly_sales,
-        'users': users,
-        'dashboard_stats': dashboard_stats,
-    }
-    return render(request, 'ecom/admin_dashboard.html', context=mydict)
+    # Show the Reports and Analytics content on the Dashboard
+    # Delegate to the reports view to reuse its optimized context and template
+    return admin_report_view(request)
 
 
 # admin view customer table
@@ -821,37 +661,54 @@ def admin_dashboard_view(request):
 def admin_view_users(request):
     import csv
     from django.http import HttpResponse
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
     customers = models.Customer.objects.select_related('user').all()
+    # Paginate queryset first to avoid building a huge in-memory list
+    page = request.GET.get('page', 1)
+    # Allow configurable page size via query param, default to 5
+    try:
+        page_size = int(request.GET.get('page_size', '5'))
+    except (TypeError, ValueError):
+        page_size = 5
+    # Clamp to sensible bounds
+    if page_size <= 0:
+        page_size = 5
+    if page_size > 100:
+        page_size = 100
+    paginator = Paginator(customers, page_size)
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     users = []
-    for c in customers:
-        print(f"DEBUG: Customer ID: {c.id}, User ID: {c.user.id if c.user else 'None'}, Name: {c.user.first_name if c.user else 'N/A'} {c.user.last_name if c.user else ''}")
+    for c in page_obj.object_list:
         users.append({
             'id': c.id,
-            'user_id': c.user.id if c.user else None,
-            'name': f"{c.user.first_name} {c.user.last_name}" if c.user else '',
+            'user_id': c.user.id if getattr(c, 'user', None) else None,
+            'name': f"{getattr(c.user, 'first_name', '')} {getattr(c.user, 'last_name', '')}".strip() if getattr(c, 'user', None) else '',
             'surname': '',
             'customer_id': c.customer_code,
-            'email': c.user.email if c.user else '',
+            'email': getattr(c.user, 'email', '') if getattr(c, 'user', None) else '',
             'contact': c.mobile,
             'address': c.get_full_address,
             'balance': getattr(c, 'balance', 0),
             'status': c.status,
             'is_active': c.status == 'Active',
+            'is_inactive': c.status in ('Inactive', 'Suspended'),
             'wallet_status': getattr(c, 'wallet_status', 'Active'),
-            'created_date': c.created_at.strftime('%Y-%m-%d') if hasattr(c, 'created_at') else '',
+            'created_date': c.created_at.strftime('%Y-%m-%d') if hasattr(c, 'created_at') and c.created_at else '',
         })
 
+    # CSV export bypasses pagination
     if request.GET.get('export') == 'csv':
-        # Create the HttpResponse object with CSV header.
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="users.csv"'
-
         writer = csv.writer(response)
-        # Write CSV header
         writer.writerow(['Customer ID', 'Name', 'Email', 'Contact', 'Address', 'Balance', 'Status', 'Wallet Status', 'Created Date'])
-
-        # Write user data rows
         for user in users:
             writer.writerow([
                 user['customer_id'],
@@ -864,15 +721,19 @@ def admin_view_users(request):
                 user['wallet_status'],
                 user['created_date'],
             ])
-
         return response
 
     context = {
         'users': users,
-        'active_count': sum(1 for u in users if u['status'] == 'Active'),
-        'pending_count': sum(1 for u in users if u['status'] == 'Pending'),
-        'suspended_count': sum(1 for u in users if u['status'] == 'Suspended'),
-        'total_count': len(users),
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'page_size': page_size,
+        # Count based on actual persisted field: User.is_active
+        'active_count': models.Customer.objects.filter(user__is_active=True).count(),
+        # No persisted "Pending" or "Suspended" state for Customer; keep keys for template compatibility
+        'pending_count': 0,
+        'suspended_count': 0,
+        'total_count': customers.count(),
     }
     return render(request, 'ecom/admin_view_users.html', context)
 
@@ -883,9 +744,14 @@ def bulk_update_users(request):
         new_status = request.POST.get('bulk_status')
 
         if user_ids and new_status:
-            customers = models.Customer.objects.filter(id__in=user_ids)
-            customers.update(status=new_status)
-            messages.success(request, f'Successfully updated {len(user_ids)} users to {new_status}')
+            # Map UI status to persisted boolean on auth User
+            target_active = True if new_status.lower() == 'active' else False
+            from django.contrib.auth.models import User
+
+            # Translate selected Customer ids to User ids and update is_active
+            users_qs = User.objects.filter(customer__id__in=user_ids)
+            updated_count = users_qs.update(is_active=target_active)
+            messages.success(request, f'Successfully updated {updated_count} users to {new_status}')
         else:
             messages.error(request, 'Please select users and status to update')
 
@@ -1128,44 +994,59 @@ def admin_view_cancelled_orders(request):
 
 
 def prepare_admin_order_view(request, orders, status, template, extra_context=None):
-    # Order the orders by created_at descending to show new orders first
-    orders = orders.order_by('-created_at')
-    
-    # Prepare a list of orders with their customer, shipping address, and order items
+    # Optimize by prefetching related items and selecting customer relations
+    from django.db.models import Prefetch
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
+    # Apply select_related/prefetch and ordering
+    orders_qs = orders.select_related('customer', 'customer__user').prefetch_related(
+        Prefetch('orderitem_set', queryset=models.OrderItem.objects.select_related('product')),
+        Prefetch('customorderitem_set', queryset=models.CustomOrderItem.objects.all()),
+    ).order_by('-created_at')
+
+    # Paginate at the queryset level to avoid building huge lists
+    page_num = request.GET.get('page', 1)
+    paginator = Paginator(orders_qs, 5)
+    try:
+        page_obj = paginator.page(page_num)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    # Build orders_data only for the current page's orders
     orders_data = []
-    
-    for order in orders:
+    for order in page_obj.object_list:
         total_price = 0
-        
-        # Get regular order items
-        order_items = models.OrderItem.objects.filter(order=order)
+
         items = []
-        for item in order_items:
+        for item in order.orderitem_set.all():
+            price = item.price or 0
+            qty = item.quantity or 0
+            total_price += price * qty
             items.append({
                 'product': item.product,
-                'quantity': item.quantity,
+                'quantity': qty,
                 'size': item.size,
-                'price': item.price,
-                'product_image': item.product.product_image.url if item.product.product_image else None,
+                'price': price,
+                'product_image': item.product.product_image.url if getattr(item.product, 'product_image', None) else None,
             })
-            total_price += item.price * item.quantity
-        
-        # Get custom order items
-        custom_order_items = models.CustomOrderItem.objects.filter(order=order)
+
         custom_items = []
-        for item in custom_order_items:
+        for item in order.customorderitem_set.all():
+            price = item.price or 0
+            qty = item.quantity or 0
+            total_price += price * qty
             custom_items.append({
                 'custom_item': item,
-                'quantity': item.quantity,
+                'quantity': qty,
                 'size': item.size,
-                'price': item.price,
+                'price': price,
                 'design': item.custom_design,
-                'image_url': None,  # CustomJerseyDesign doesn't have image_url attribute
+                'image_url': None,
             })
-            total_price += item.price * item.quantity
-        
-        # Use order.address if available, else fallback to customer's full address
-        shipping_address = order.address if order.address else (order.customer.get_full_address if order.customer else '')
+
+        shipping_address = order.address if getattr(order, 'address', None) else (order.customer.get_full_address if getattr(order, 'customer', None) else '')
         orders_data.append({
             'order': order,
             'customer': order.customer,
@@ -1177,45 +1058,28 @@ def prepare_admin_order_view(request, orders, status, template, extra_context=No
             'order_date': order.order_date,
             'total_price': total_price,
         })
-    
-    context = {
-        'orders_data': orders_data,
-        'status': status
-    }
+
+    # Replace page object list with our computed dicts so template pagination works
+    page_obj.object_list = orders_data
+
+    context = {'orders_data': page_obj, 'paginator': paginator, 'status': status}
     if extra_context:
         context.update(extra_context)
-    
     return render(request, template, context)
 
 @admin_required
 def admin_view_cancelled_orders(request):
-    orders = models.Orders.objects.filter(status='Cancelled').prefetch_related('orderitem_set').order_by('-created_at')
-    # Prepare orders_data with order_id fallback and total price calculation
-    orders_data = []
-    for order in orders:
-        order_id = order.order_ref if order.order_ref else f"ORD-{order.id}"
-        order_items_qs = order.orderitem_set.all()
-        order_items = []
-        total_price = 0
-        for item in order_items_qs:
-            price = item.price if item.price else 0
-            quantity = item.quantity if item.quantity else 0
-            total_price += price * quantity
-            order_items.append({
-                'product': item.product,
-                'quantity': quantity,
-                'size': item.size,
-                'price': price,
-                'product_image': item.product.product_image.url if item.product and item.product.product_image else None,
-            })
-        orders_data.append({
-            'order': order,
-            'customer': order.customer,
-            'order_items': order_items,
-            'order_id': order_id,
-            'order_date': order.order_date.strftime('%B %d, %Y') if order.order_date else order.created_at.strftime('%B %d, %Y'),
-            'total_price': total_price,
-        })
+    # Use the same paginated helper to keep behaviour consistent (5 per page)
+    orders = models.Orders.objects.filter(status='Cancelled')
+    counts = get_order_status_counts()
+    context = {
+        'cancelled_count': counts.get('cancelled', 0),
+        'processing_count': counts.get('processing', 0),
+        'confirmed_count': counts.get('confirmed', 0),
+        'shipping_count': counts.get('shipping', 0),
+        'delivered_count': counts.get('delivered', 0),
+    }
+    return prepare_admin_order_view(request, orders, 'Cancelled', 'ecom/admin_view_orders.html', extra_context=context)
     # Pass orders_data to template
     context = {
         'orders_data': orders_data,
@@ -5147,6 +5011,98 @@ def approve_cancellation_request(request, order_id):
         messages.error(request, 'Invalid request method.')
         return redirect('admin-view-cancellation-requests')
 
+    # Process approval and send customer notification
+    try:
+        order = models.Orders.objects.get(id=order_id, status='Cancellation Requested')
+        admin_notes = request.POST.get('admin_notes', '')
+
+        # Approve the cancellation
+        success = order.approve_cancellation(request.user, admin_notes)
+
+        if success:
+            # Send cancellation email notification to customer
+            try:
+                from django.core.mail import send_mail
+                from django.template.loader import render_to_string
+                from django.utils.html import strip_tags
+                from django.conf import settings
+                from django.urls import reverse
+
+                customer_email = None
+                if getattr(order, 'customer', None) and getattr(order.customer, 'user', None):
+                    customer_email = order.customer.user.email
+                # Fallback to order.email if available
+                if not customer_email:
+                    customer_email = getattr(order, 'email', None)
+
+                if customer_email:
+                    cancelled_orders_url = request.build_absolute_uri(reverse('cancelled-orders'))
+                    context = {
+                        'customer_name': f"{order.customer.user.first_name} {order.customer.user.last_name}" if order.customer and order.customer.user else 'Customer',
+                        'order_id': order.id,
+                        'order_ref': getattr(order, 'order_ref', None),
+                        'total_amount': order.get_total_amount(),
+                        'cancelled_orders_url': cancelled_orders_url,
+                        'site_name': 'WorksTeamWear',
+                        'message_title': 'Your order has been cancelled',
+                    }
+
+                    html_message = render_to_string('ecom/email/order_cancelled.html', context)
+                    plain_message = strip_tags(html_message)
+
+                    send_mail(
+                        subject='Your order has been cancelled',
+                        message=plain_message,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[customer_email],
+                        html_message=html_message,
+                        fail_silently=False,
+                    )
+                else:
+                    print(f"⚠️ No customer email available for Order #{order.id}; skipping email notification.")
+            except Exception as email_err:
+                # Do not block approval on email errors
+                print(f"❌ Error sending cancellation email for Order #{order.id}: {email_err}")
+
+            # Process refund for paid orders
+            if order.is_paid_order():
+                from .refund_utils import process_order_refund
+                refund_success, refund_message = process_order_refund(order, request.user)
+
+                if refund_success:
+                    message = f'Cancellation request for Order #{order.id} has been approved and refund has been processed successfully! {refund_message}'
+                    if request.headers.get('Content-Type') == 'application/json':
+                        return JsonResponse({'status': 'success', 'message': message})
+                    messages.success(request, message)
+                else:
+                    message = f'Cancellation request for Order #{order.id} has been approved, but refund processing failed: {refund_message}. Please process the refund manually.'
+                    if request.headers.get('Content-Type') == 'application/json':
+                        return JsonResponse({'status': 'warning', 'message': message})
+                    messages.warning(request, message)
+            else:
+                message = f'Cancellation request for Order #{order.id} has been approved successfully!'
+                if request.headers.get('Content-Type') == 'application/json':
+                    return JsonResponse({'status': 'success', 'message': message})
+                messages.success(request, message)
+        else:
+            message = 'Failed to approve cancellation request.'
+            if request.headers.get('Content-Type') == 'application/json':
+                return JsonResponse({'status': 'error', 'message': message})
+            messages.error(request, message)
+            return redirect('admin-view-cancellation-requests')
+
+    except models.Orders.DoesNotExist:
+        message = 'Cancellation request not found.'
+        if request.headers.get('Content-Type') == 'application/json':
+            return JsonResponse({'status': 'error', 'message': message})
+        messages.error(request, message)
+    except Exception as e:
+        message = f'An error occurred: {str(e)}'
+        if request.headers.get('Content-Type') == 'application/json':
+            return JsonResponse({'status': 'error', 'message': message})
+        messages.error(request, message)
+
+    return redirect('admin-view-cancellation-requests')
 
 # SuperAdmin Management Views
 @superadmin_required

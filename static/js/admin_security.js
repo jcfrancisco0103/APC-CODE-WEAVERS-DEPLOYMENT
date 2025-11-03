@@ -1,18 +1,63 @@
 /**
- * Admin Security Client-Side Validation
- * Provides additional security checks for admin dashboard access
+ * Admin Security Client-Side Validation (optimized)
+ * - Caches positive admin verification for 5 minutes
+ * - Defers network work to idle time
+ * - Prevents double initialization
  */
+
+const ADMIN_CACHE_KEY = 'admin_status_v1';
+const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function readAdminCache() {
+    try {
+        const raw = sessionStorage.getItem(ADMIN_CACHE_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== 'object') return null;
+        if (Date.now() - (data.timestamp || 0) > ADMIN_CACHE_TTL_MS) return null;
+        return data;
+    } catch (_) {
+        return null;
+    }
+}
+
+function writeAdminCache(isAdmin) {
+    try {
+        sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({ is_admin: !!isAdmin, timestamp: Date.now() }));
+    } catch (_) {
+        // ignore storage errors
+    }
+}
 
 // Check if user is trying to access admin dashboard
 function checkAdminAccess() {
     const currentPath = window.location.pathname;
-    const adminPaths = ['/admin/', '/view-customer', '/add-product', '/admin-view-booking'];
-    
+    const adminPaths = [
+        '/admin/',
+        '/admin-dashboard',
+        '/admin-products',
+        '/admin-view-users',
+        '/admin-view-processing-orders',
+        '/admin-view-confirmed-orders',
+        '/admin-view-shipping-orders',
+        '/admin-view-delivered-orders',
+        '/admin-view-booking',
+    ];
+
     // Check if current path is an admin path
-    const isAdminPath = adminPaths.some(path => currentPath.includes(path));
-    
-    if (isAdminPath) {
-        // Make AJAX request to verify admin status
+    const isAdminPath = adminPaths.some(path => currentPath.startsWith(path));
+
+    if (!isAdminPath) return;
+
+    // If server already indicates admin, skip verification entirely
+    if (window.__is_admin__ === true) return;
+
+    const cached = readAdminCache();
+    if (cached && cached.is_admin === true) {
+        return; // Skip network call within TTL
+    }
+
+    const verify = () => {
         fetch('/verify-admin-status/', {
             method: 'GET',
             headers: {
@@ -29,13 +74,20 @@ function checkAdminAccess() {
                 setTimeout(() => {
                     window.location.href = '/adminlogin';
                 }, 3000);
+            } else {
+                writeAdminCache(true);
             }
         })
         .catch(error => {
-            console.error('Admin verification failed:', error);
-            // On error, redirect to login for safety
-            window.location.href = '/adminlogin';
+            // Be non-disruptive on errors to avoid kicking logged-in admins
+            console.warn('Admin verification failed, skipping client redirect:', error);
         });
+    };
+
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => { verify(); }, { timeout: 2000 });
+    } else {
+        setTimeout(() => { verify(); }, 200);
     }
 }
 
@@ -83,21 +135,13 @@ function showAccessDeniedModal() {
             </div>
         </div>
     `;
-    
-    // Add modal to page
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Start countdown
     let countdown = 3;
     const countdownElement = document.getElementById('countdown');
     const countdownInterval = setInterval(() => {
         countdown--;
-        if (countdownElement) {
-            countdownElement.textContent = countdown;
-        }
-        if (countdown <= 0) {
-            clearInterval(countdownInterval);
-        }
+        if (countdownElement) countdownElement.textContent = String(countdown);
+        if (countdown <= 0) clearInterval(countdownInterval);
     }, 1000);
 }
 
@@ -117,37 +161,38 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// Monitor for navigation to admin pages
+// Monitor for navigation to admin pages (single init)
+let __adminMonitorInitialized = false;
 function monitorAdminAccess() {
+    // If server says user is admin, skip all monitoring to cut overhead
+    if (window.__is_admin__ === true) return;
+    if (__adminMonitorInitialized) return;
+    __adminMonitorInitialized = true;
+
     // Check on page load
     checkAdminAccess();
-    
+
     // Monitor for programmatic navigation
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
-    
+
     history.pushState = function() {
         originalPushState.apply(history, arguments);
         setTimeout(checkAdminAccess, 100);
     };
-    
+
     history.replaceState = function() {
         originalReplaceState.apply(history, arguments);
         setTimeout(checkAdminAccess, 100);
     };
-    
+
     // Monitor for back/forward navigation
     window.addEventListener('popstate', () => {
         setTimeout(checkAdminAccess, 100);
     });
 }
 
-// Initialize security monitoring when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    monitorAdminAccess();
-});
-
-// Also check immediately if DOM is already loaded
+// Initialize security monitoring when DOM is ready (single path)
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', monitorAdminAccess);
 } else {

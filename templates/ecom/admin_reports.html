@@ -1,6 +1,10 @@
 {% extends 'ecom/admin_base.html' %}
 {% load static %}
 {% load humanize %}
+{% block head_scripts %}
+    <!-- Ensure Chart.js is available for analytics graphs (load synchronously) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
 
 {% block content %}
 <style>
@@ -456,7 +460,13 @@
         <!-- Header -->
         <div class="header">
             <div class="header-content">
-                <h1>Reports & Analytics</h1>
+                <h1>
+                    {% if request.resolver_match.url_name == 'admin-dashboard' %}
+                        Dashboard
+                    {% else %}
+                        Reports & Analytics
+                    {% endif %}
+                </h1>
                 <p>Comprehensive business metrics and insights</p>
             </div>
             <div class="button-group">
@@ -562,7 +572,8 @@
             </div>
         </div>
 
-        <!-- Tabs -->
+        <!-- Tabs (hidden on Dashboard) -->
+        {% if request.resolver_match.url_name != 'admin-dashboard' %}
         <div class="tabs">
             <div class="tab-list">
                 <button class="tab-button active" onclick="switchTab('sales')">Sales</button>
@@ -912,6 +923,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <script>

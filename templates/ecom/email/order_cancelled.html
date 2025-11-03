@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your order has been cancelled</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f7f7f7; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e6e6e6; border-radius: 8px; overflow: hidden; }
+        .header { background: #dc3545; color: #fff; padding: 16px 24px; }
+        .content { padding: 24px; }
+        .btn { display: inline-block; padding: 10px 16px; background: #007bff; color: #fff !important; text-decoration: none; border-radius: 4px; }
+        .meta { margin-top: 16px; font-size: 14px; color: #666; }
+        .footer { padding: 16px 24px; font-size: 12px; color: #888; border-top: 1px solid #eee; }
+    </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h2 style="margin:0;">{{ message_title }}</h2>
+            </div>
+            <div class="content">
+                <p>Hi {{ customer_name }},</p>
+                <p>Your order {% if order_ref %}{{ order_ref }}{% else %}#{{ order_id }}{% endif %} has been cancelled.</p>
+                <p class="meta">
+                    {% if total_amount %}Total Amount: ₱{{ total_amount }}<br/>{% endif %}
+                    Status: Cancelled
+                </p>
+                <p>You can view your cancelled orders here:</p>
+                <p>
+                    <a class="btn" href="{{ cancelled_orders_url }}" target="_blank">View Cancelled Orders</a>
+                </p>
+                <p>If you have any questions, just reply to this email and we’ll help you out.</p>
+                <p>Salamat,
+                    <br/>{{ site_name }} Team</p>
+            </div>
+            <div class="footer">
+                This is an automated notification from {{ site_name }}.
+            </div>
+        </div>
+    </body>
+</html>

@@ -6,12 +6,20 @@
     <link rel="icon" type="image/x-icon" href="static/images/new logo.png">
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Server-provided admin flag to avoid unnecessary client verification
+        window.__is_admin__ = {{ request.user.is_staff|yesno:'true,false' }};
+    </script>
+    <!-- Tailwind CSS: switch to CSS-only CDN for faster loads -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Lucide Icons (deferred) -->
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="dns-prefetch" href="https://unpkg.com">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js" defer></script>
+    <script>window.lucide = window.lucide || { createIcons: function(){} };</script>
+    {% block head_scripts %}{% endblock %}
     <style>
         .sidebar-transition {
             transition: transform 0.3s ease-in-out;
@@ -151,37 +159,52 @@
         </main>
     </div>
 
-    <!-- Admin Security JavaScript -->
-    <script src="{% static 'js/admin_security.js' %}"></script>
+    <!-- Admin Security JavaScript (deferred) -->
+    <script src="{% static 'js/admin_security.js' %}" defer></script>
     
     <script>
-        // Sidebar toggle functionality
-        const sidebar = document.getElementById('sidebar');
-        const sidebarOverlay = document.getElementById('sidebar-overlay');
-        const openSidebarBtn = document.getElementById('open-sidebar');
-        const closeSidebarBtn = document.getElementById('close-sidebar');
+        // Sidebar toggle functionality (guarded against nulls)
+        (function(){
+            try {
+                const sidebar = document.getElementById('sidebar');
+                const sidebarOverlay = document.getElementById('sidebar-overlay');
+                const openSidebarBtn = document.getElementById('open-sidebar');
+                const closeSidebarBtn = document.getElementById('close-sidebar');
 
-        function openSidebar() {
-            if (sidebar && sidebarOverlay) {
-                sidebar.classList.remove('-translate-x-full');
-                sidebarOverlay.classList.remove('hidden');
+                function openSidebar() {
+                    if (sidebar && sidebarOverlay) {
+                        sidebar.classList.remove('-translate-x-full');
+                        sidebarOverlay.classList.remove('hidden');
+                    }
+                }
+                function closeSidebar() {
+                    if (sidebar && sidebarOverlay) {
+                        sidebar.classList.add('-translate-x-full');
+                        sidebarOverlay.classList.add('hidden');
+                    }
+                }
+                
+                if (openSidebarBtn) {
+                    openSidebarBtn.addEventListener('click', openSidebar);
+                }
+                if (closeSidebarBtn) {
+                    closeSidebarBtn.addEventListener('click', closeSidebar);
+                }
+                if (sidebarOverlay) {
+                    sidebarOverlay.addEventListener('click', closeSidebar);
+                }
+            } catch (e) {
+                console.warn('Sidebar init skipped:', e);
             }
-        }
-        function closeSidebar() {
-            if (sidebar && sidebarOverlay) {
-                sidebar.classList.add('-translate-x-full');
-                sidebarOverlay.classList.add('hidden');
-            }
-        }
-        
-        if (openSidebarBtn) {
-            openSidebarBtn.addEventListener('click', openSidebar);
-        }
-        if (closeSidebarBtn) {
-            closeSidebarBtn.addEventListener('click', closeSidebar);
-        }
-        if (sidebarOverlay) {
-            sidebarOverlay.addEventListener('click', closeSidebar);
+        })();
+    </script>
+    <script>
+        // Ensure lucide icons render after scripts load
+        const initLucide = () => { try { if (window.lucide && typeof window.lucide.createIcons === 'function') { window.lucide.createIcons(); } } catch(_){} };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initLucide);
+        } else {
+            initLucide();
         }
     </script>
 </body>

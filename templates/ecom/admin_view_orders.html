@@ -326,68 +326,88 @@
     </div>
 
     <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
+        // Minimal scheduling helper: use idle when available, else 10ms timeout
+        const scheduleLight = (fn) => {
+            if (typeof window.requestIdleCallback === 'function') {
+                try { return window.requestIdleCallback(fn, { timeout: 100 }); } catch(_){}
+            }
+            return setTimeout(fn, 10);
+        };
+
+        // Initialize Lucide icons lightly to avoid blocking paint
+        scheduleLight(() => {
+            try {
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons();
+                }
+            } catch (_) {}
+        });
 
         // Search functionality (guard if element missing)
-        const orderSearchInput = document.getElementById('order-search');
-        if (orderSearchInput) {
-            orderSearchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                const rows = document.querySelectorAll('.order-row');
-                
-                rows.forEach(row => {
-                    const orderId = row.dataset.orderId;
-                    const customer = row.dataset.customer;
+        scheduleLight(() => {
+            const orderSearchInput = document.getElementById('order-search');
+            if (orderSearchInput) {
+                orderSearchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase();
+                    const rows = document.querySelectorAll('.order-row');
                     
-                    if (orderId.includes(searchTerm) || customer.includes(searchTerm)) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
+                    rows.forEach(row => {
+                        const orderId = row.dataset.orderId;
+                        const customer = row.dataset.customer;
+                        
+                        if (orderId.includes(searchTerm) || customer.includes(searchTerm)) {
+                            row.style.display = '';
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    });
                 });
-            });
-        }
+            }
+        });
 
         // Customer filter functionality (guard if control not present)
-        const customerFilter = document.getElementById('customer-filter');
-        if (customerFilter) {
-            customerFilter.addEventListener('change', function() {
-                const filterValue = this.value;
-                const rows = document.querySelectorAll('.order-row');
-                
-                rows.forEach(row => {
-                    if (filterValue === '') {
-                        row.style.display = '';
-                    } else {
-                        // Add your customer filtering logic here
-                        // For now, just show all rows
-                        row.style.display = '';
-                    }
+        scheduleLight(() => {
+            const customerFilter = document.getElementById('customer-filter');
+            if (customerFilter) {
+                customerFilter.addEventListener('change', function() {
+                    const filterValue = this.value;
+                    const rows = document.querySelectorAll('.order-row');
+                    
+                    rows.forEach(row => {
+                        if (filterValue === '') {
+                            row.style.display = '';
+                        } else {
+                            // Add your customer filtering logic here
+                            // For now, just show all rows
+                            row.style.display = '';
+                        }
+                    });
                 });
-            });
-        }
+            }
+        });
 
         // Select all functionality
-        const selectAllCheckbox = document.getElementById('select-all-orders');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener('change', function() {
-                const orderCheckboxes = document.querySelectorAll('.order-checkbox');
-                orderCheckboxes.forEach(checkbox => {
-                    checkbox.checked = this.checked;
+        scheduleLight(() => {
+            const selectAllCheckbox = document.getElementById('select-all-orders');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function() {
+                    const orderCheckboxes = document.querySelectorAll('.order-checkbox');
+                    orderCheckboxes.forEach(checkbox => {
+                        checkbox.checked = this.checked;
+                    });
                 });
-            });
 
-            // Update select all when individual checkboxes change
-            document.querySelectorAll('.order-checkbox').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const totalCheckboxes = document.querySelectorAll('.order-checkbox').length;
-                    const checkedCheckboxes = document.querySelectorAll('.order-checkbox:checked').length;
-                    selectAllCheckbox.checked = totalCheckboxes === checkedCheckboxes;
-                    selectAllCheckbox.indeterminate = checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes;
+                // Update select all when individual checkboxes change
+                document.querySelectorAll('.order-checkbox').forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        const totalCheckboxes = document.querySelectorAll('.order-checkbox').length;
+                        const checkedCheckboxes = document.querySelectorAll('.order-checkbox:checked').length;
+                        selectAllCheckbox.checked = totalCheckboxes === checkedCheckboxes;
+                        selectAllCheckbox.indeterminate = checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes;
+                    });
                 });
-            });
-        }
+            }
+        });
 
         // Order detail modal functionality
         function openOrderDetail(orderId) {
@@ -398,7 +418,7 @@
                     if (data.success) {
                         document.getElementById('orderDetailContent').innerHTML = data.html;
                         document.getElementById('orderDetailModal').classList.remove('hidden');
-                        lucide.createIcons(); // Reinitialize icons
+                        scheduleLight(() => { try { if (window.lucide && typeof window.lucide.createIcons === 'function') { window.lucide.createIcons(); } } catch(_){} });
                     } else {
                         alert('Error loading order details');
                     }
