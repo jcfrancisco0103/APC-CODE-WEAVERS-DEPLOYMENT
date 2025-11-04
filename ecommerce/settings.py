@@ -30,6 +30,18 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '147.185.221.29', '147.185.221.29:64472', 'worksteamwear.playit.pub','147.185.221.16:24531','147.185.221.16','147.185.221.212','*']
 
+# Base URL for generating absolute links in emails (optional override)
+PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='')
+
+# Trust proxy headers so request.build_absolute_uri uses correct host/scheme
+USE_X_FORWARDED_HOST = True
+
+# Allow CSRF on common hosted domains (adjust as needed)
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.vercel.app',
+    'https://*.app.github.dev',
+]
+
 
 # Application definition
 

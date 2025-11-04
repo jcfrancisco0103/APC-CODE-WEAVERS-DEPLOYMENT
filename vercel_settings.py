@@ -14,6 +14,16 @@ ALLOWED_HOSTS = [
     '*'  # Remove this in production and add your specific domain
 ]
 
+# Use forwarded host/https from edge proxy
+USE_X_FORWARDED_HOST = True
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.vercel.app',
+    'https://*.app.github.dev',
+]
+
+# Optional: allow overriding absolute URLs in emails
+PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='')
+
 # Database configuration for Vercel (read-only SQLite bundled with code)
 # For real production, use a managed database (PostgreSQL/MySQL) via env vars.
 # Use ephemeral SQLite in /tmp for serverless. Tables are created on cold start.

@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse
+from urllib.parse import urljoin
 import uuid
 from .models import EmailVerification
 
@@ -28,9 +29,13 @@ def send_verification_email(user, request):
             email_verification.save()
         
         # Build verification URL
-        verification_url = request.build_absolute_uri(
-            reverse('verify_email', kwargs={'token': email_verification.verification_token})
-        )
+        path = reverse('verify_email', kwargs={'token': email_verification.verification_token})
+        base = getattr(settings, 'PUBLIC_BASE_URL', '')
+        if base:
+            base = base.rstrip('/') + '/'
+            verification_url = urljoin(base, path.lstrip('/'))
+        else:
+            verification_url = request.build_absolute_uri(path)
         
         # Prepare email content
         context = {
