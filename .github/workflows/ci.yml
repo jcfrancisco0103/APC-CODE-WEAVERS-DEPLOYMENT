@@ -201,11 +201,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 <<<<<<< HEAD
+<<<<<<< HEAD
       with:
         submodules: false
       with:
         fetch-depth: 0
         submodules: false
+=======
+>>>>>>> parent of 3121b93f (ci(security): update trivy scan workflow permissions and actions)
 =======
 >>>>>>> parent of 3121b93f (ci(security): update trivy scan workflow permissions and actions)
 
