@@ -13,7 +13,7 @@ from django.core.wsgi import get_wsgi_application
 
 # Use Vercel settings when deployed on Vercel
 if os.environ.get('VERCEL'):
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vercel_settings')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecommerce.vercel_settings')
 else:
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecommerce.settings')
 

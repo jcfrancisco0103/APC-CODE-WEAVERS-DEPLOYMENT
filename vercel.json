@@ -1,5 +1,17 @@
 {
   "version": 2,
+  "env": {
+    "DJANGO_SETTINGS_MODULE": "ecommerce.vercel_settings",
+    "VERCEL": "1",
+    "PYTHONUNBUFFERED": "1"
+  },
+  "build": {
+    "env": {
+      "DJANGO_SETTINGS_MODULE": "ecommerce.vercel_settings",
+      "VERCEL": "1",
+      "PYTHONUNBUFFERED": "1"
+    }
+  },
   "builds": [
     {
       "src": "ecommerce/wsgi.py",
@@ -30,7 +42,7 @@
   ],
   "outputDirectory": "staticfiles_build",
   "installCommand": "pip install -r requirements.txt",
-  "buildCommand": "python manage.py collectstatic --noinput",
+  "buildCommand": "python manage.py collectstatic --noinput && mkdir -p staticfiles_build/media && if [ -d media ]; then cp -r media/* staticfiles_build/media/; fi",
   "devCommand": "python manage.py runserver",
   "framework": null,
   "functions": {

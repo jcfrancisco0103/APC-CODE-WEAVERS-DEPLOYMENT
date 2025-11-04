@@ -1,5 +1,5 @@
 import os
-from .settings import *
+from ecommerce.settings import *
 from decouple import config
 
 # Override settings for Vercel deployment
