@@ -18,7 +18,10 @@
     {
       "src": "ecommerce/wsgi.py",
       "use": "@vercel/python",
-      "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
+      "config": {
+        "runtime": "python3.12",
+        "excludeFiles": "{pbl/**,t-shirt-designer-webapp/**,static/**,staticfiles/**,media/**,logs/**,docs/**,tests/**,**/*.zip,**/*.tar,**/*.tar.gz,**/*.tgz,.git/**}"
+      }
     }
   ],
   "routes": [
