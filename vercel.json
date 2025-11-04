@@ -3,13 +3,15 @@
   "env": {
     "DJANGO_SETTINGS_MODULE": "ecommerce.vercel_settings",
     "VERCEL": "1",
-    "PYTHONUNBUFFERED": "1"
+    "PYTHONUNBUFFERED": "1",
+    "PIP_ONLY_BINARY": ":all:"
   },
   "build": {
     "env": {
       "DJANGO_SETTINGS_MODULE": "ecommerce.vercel_settings",
       "VERCEL": "1",
-      "PYTHONUNBUFFERED": "1"
+      "PYTHONUNBUFFERED": "1",
+      "PIP_ONLY_BINARY": ":all:"
     }
   },
   "builds": [
