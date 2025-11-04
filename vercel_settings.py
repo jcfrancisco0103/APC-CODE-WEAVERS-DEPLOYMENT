@@ -16,10 +16,11 @@ ALLOWED_HOSTS = [
 
 # Database configuration for Vercel (read-only SQLite bundled with code)
 # For real production, use a managed database (PostgreSQL/MySQL) via env vars.
+# Use ephemeral SQLite in /tmp for serverless. Tables are created on cold start.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'NAME': '/tmp/db.sqlite3',
     }
 }
 
@@ -71,4 +72,19 @@ CACHES = {
             'MAX_ENTRIES': 1000,
         }
     }
+}
+
+# Log Django errors to console so Vercel logs show tracebacks
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {'handlers': ['console'], 'level': 'ERROR', 'propagate': True},
+        'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': True},
+    },
 }

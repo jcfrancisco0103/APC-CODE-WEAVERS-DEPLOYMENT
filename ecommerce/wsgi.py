@@ -17,4 +17,22 @@ if os.environ.get('VERCEL'):
 else:
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecommerce.settings')
 
+# On Vercel cold start, ensure the SQLite DB in /tmp exists by running migrations.
+if os.environ.get('VERCEL'):
+    try:
+        import pathlib
+        db_path = pathlib.Path('/tmp/db.sqlite3')
+        flag_path = pathlib.Path('/tmp/.migrated')
+        if not flag_path.exists():
+            import django
+            django.setup()
+            from django.core.management import call_command
+            # Create DB and apply migrations non-interactively
+            call_command('migrate', interactive=False, run_syncdb=True, verbosity=0)
+            flag_path.touch()
+    except Exception as e:
+        # Log but continue to let Django handle and surface the error in logs
+        import sys
+        print(f"[WSGI] Migration step failed: {e}", file=sys.stderr)
+
 application = get_wsgi_application()
