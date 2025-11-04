@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'ecom',
     'widget_tweaks',
+    'social_django',
 ]
 
 
@@ -72,6 +73,8 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'ecom.views.order_counts',
                 'ecom.context_processors.superadmin_context',
+                'social_django.context_processors.backends',
+                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -146,6 +149,74 @@ LOGIN_URL = '/customerlogin'
 
 # Logout redirect URL
 LOGOUT_REDIRECT_URL = '/customerlogin'
+
+# Authentication backends (add Google OAuth)
+AUTHENTICATION_BACKENDS = (
+    'social_core.backends.google.GoogleOAuth2',
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+# Social Auth: Google OAuth2
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('GOOGLE_OAUTH_CLIENT_ID', default='')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('GOOGLE_OAUTH_CLIENT_SECRET', default='')
+# Ensure Google provides required user info and stable account selection
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = ['openid', 'email', 'profile']
+SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {
+    'prompt': 'select_account',
+    'access_type': 'offline'
+}
+# Explicit login URL for social auth error redirects
+SOCIAL_AUTH_LOGIN_URL = '/customerlogin'
+# Redirect settings
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = LOGIN_REDIRECT_URL
+SOCIAL_AUTH_LOGIN_ERROR_URL = '/customerlogin'
+# Treat HTTP as OK for localhost; set True behind HTTPS proxies
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = config('SOCIAL_AUTH_REDIRECT_IS_HTTPS', default=False, cast=bool)
+
+# Force a stable callback during local development to avoid host mismatch.
+# Override via env var in production.
+SOCIAL_AUTH_REDIRECT_URI = config(
+    'SOCIAL_AUTH_REDIRECT_URI',
+    default='http://localhost:8000/oauth/complete/google-oauth2/'
+)
+
+# Raise exceptions from social-auth during development to see exact failure causes
+if DEBUG:
+    SOCIAL_AUTH_RAISE_EXCEPTIONS = True
+    # Explicitly set cookie samesite for clarity; default is 'Lax' in Django
+    SESSION_COOKIE_SAMESITE = 'Lax'
+
+# Optional: add basic debug logging for social auth to aid troubleshooting
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'social': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+
+# Use default pipeline with an extra step to activate social users and ensure Customer profile
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'social_core.pipeline.user.get_username',
+    'social_core.pipeline.user.create_user',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.user_details',
+    'ecom.social_pipeline.ensure_active_customer',
+)
 
 #for contact us give your gmail id and password
 # Email configuration - Use SMTP for actual email sending

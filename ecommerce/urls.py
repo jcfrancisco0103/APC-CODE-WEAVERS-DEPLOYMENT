@@ -22,11 +22,14 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # Include Django auth URLs to provide password reset and related named routes
     path('', include('django.contrib.auth.urls')),
+    # Social auth routes (Google OAuth2)
+    path('oauth/', include('social_django.urls', namespace='social')),
     path('accounts/login/', RedirectView.as_view(url=reverse_lazy('customerlogin')), name='accounts-login-redirect'),
     path('manage-inventory', manage_inventory, name='manage-inventory'),
     path('update-stock/<int:item_id>/', update_stock, name='update-stock'),
     path('',views.home_view,name=''),
     path('afterlogin', views.afterlogin_view,name='afterlogin'),
+    path('set-password', views.set_password_view, name='set-password'),
     path('logout/', LogoutView.as_view(next_page=reverse_lazy('customerlogin')), name='logout'),
     path('about', views.aboutus_view, name='about'),
     path('contactus', views.contactus_view,name='contactus'),

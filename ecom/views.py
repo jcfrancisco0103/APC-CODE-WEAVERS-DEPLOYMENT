@@ -641,10 +641,40 @@ def add_custom_jersey_to_cart(request):
 
 #---------AFTER ENTERING CREDENTIALS WE CHECK WHETHER USERNAME AND PASSWORD IS OF ADMIN,CUSTOMER
 def afterlogin_view(request):
-    if is_customer(request.user):
+    # For social-auth users (e.g., Google), skip forcing password setup.
+    # Only redirect to set-password if there's no Google link and no usable password.
+    if request.user.is_authenticated:
+        try:
+            from social_django.models import UserSocialAuth
+            has_google = UserSocialAuth.objects.filter(user=request.user, provider='google-oauth2').exists()
+        except Exception:
+            has_google = False
+        if not request.user.has_usable_password() and not has_google:
+            return redirect('set-password')
+
+    # Treat any non-staff user as a customer (covers social signups not in CUSTOMER group)
+    if is_customer(request.user) or (request.user.is_authenticated and not request.user.is_staff):
         return redirect('customer-home')
     else:
         return redirect('admin-view-booking')
+
+@login_required
+def set_password_view(request):
+    """Allow logged-in users without a password to set one for email+password login."""
+    from django.contrib.auth.forms import SetPasswordForm
+    if request.method == 'POST':
+        form = SetPasswordForm(request.user, request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Password set successfully. You can now log in with your email and password.')
+            return redirect('customer-home')
+        else:
+            messages.error(request, 'Please correct the errors below and try again.')
+    else:
+        form = SetPasswordForm(request.user)
+    return render(request, 'ecom/set_password.html', {'form': form})
+
+# Removed set_password_view: users can continue using Google or email/password without a forced password setup step.
 
 #---------------------------------------------------------------------------------
 #------------------------ ADMIN RELATED VIEWS START ------------------------------
