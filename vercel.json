@@ -40,14 +40,9 @@
       "dest": "ecommerce/wsgi.py"
     }
   ],
-  "outputDirectory": "staticfiles_build",
+  
   "installCommand": "pip install -r requirements.txt",
   "buildCommand": "python manage.py collectstatic --noinput && mkdir -p staticfiles_build/media && if [ -d media ]; then cp -r media/* staticfiles_build/media/; fi",
   "devCommand": "python manage.py runserver",
-  "framework": null,
-  "functions": {
-    "ecommerce/wsgi.py": {
-      "includeFiles": "**"
-    }
-  }
+  "framework": null
 }
