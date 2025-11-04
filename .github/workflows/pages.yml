@@ -1,0 +1,38 @@
+name: GitHub Pages (disabled)
+
+# Keep Pages workflow present but disabled to avoid failing runs.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: ${{ false }}  # fully disabled per request
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # If you ever enable this, upload a static artifact directory (e.g., ./public)
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
