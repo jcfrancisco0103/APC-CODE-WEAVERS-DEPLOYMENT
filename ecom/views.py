@@ -2603,7 +2603,11 @@ def my_order_view(request):
             'order': order,
             'items': order_items
         })
-    return render(request, 'ecom/my_order.html', {'orders_with_items': orders_with_items})
+    template = 'ecom/my_order.html'
+    # Serve partial if requested via AJAX for inline tabs
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        template = 'ecom/fragments/my_orders_list.html'
+    return render(request, template, {'orders_with_items': orders_with_items})
 
 @login_required(login_url='customerlogin')
 @user_passes_test(is_customer)
@@ -2688,11 +2692,42 @@ def download_invoice_view(request, order_id):
 @user_passes_test(is_customer)
 def my_profile_view(request):
     try:
-        customer=models.Customer.objects.get(user_id=request.user.id)
-        return render(request,'ecom/my_profile.html',{'customer':customer})
-    except models.Customer.DoesNotExist:
+        customer = models.Customer.objects.get(user_id=request.user.id)
+        user = models.User.objects.get(id=customer.user_id)
+    except (models.Customer.DoesNotExist, models.User.DoesNotExist):
         messages.error(request, 'Customer profile not found. Please contact support.')
         return redirect('customer-home')
+
+    if request.method == 'POST':
+        userForm = forms.CustomerUserEditForm(request.POST, instance=user)
+        customerForm = forms.CustomerNonAddressForm(request.POST, request.FILES, instance=customer)
+
+        if userForm.is_valid() and customerForm.is_valid():
+            user = userForm.save(commit=False)
+            user.save()
+
+            customer = customerForm.save(commit=False)
+            customer.user = user
+            customer.save()
+
+            messages.success(request, 'Profile updated successfully!')
+            return redirect('my-profile')
+        else:
+            for field, errors in userForm.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+            for field, errors in customerForm.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    else:
+        userForm = forms.CustomerUserEditForm(instance=user)
+        customerForm = forms.CustomerNonAddressForm(instance=customer)
+
+    return render(request, 'ecom/my_profile.html', {
+        'customer': customer,
+        'userForm': userForm,
+        'customerForm': customerForm,
+    })
 
 
 @user_passes_test(is_customer)
@@ -2761,7 +2796,11 @@ def change_address_view(request):
     else:
         form = forms.ShippingAddressForm(instance=customer)
 
-    return render(request, 'ecom/change_address.html', {
+    template = 'ecom/change_address.html'
+    # Serve partial if requested via AJAX for inline tabs
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        template = 'ecom/fragments/address_form.html'
+    return render(request, template, {
         'form': form,
         'customer': customer,
     })
@@ -2804,6 +2843,9 @@ def change_password_view(request):
                 messages.success(request, 'Password updated successfully.')
                 return redirect('my-profile')
 
+    # Serve partial if requested via AJAX for inline tabs
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return render(request, 'ecom/fragments/change_password_form.html')
     return render(request, 'ecom/change_password.html')
 
 
@@ -3194,6 +3236,30 @@ def get_saved_addresses(request):
     try:
         customer = Customer.objects.get(user=request.user)
         addresses = SavedAddress.objects.filter(customer=customer)
+        # Seed from current customer address if none exists yet
+        if not addresses.exists():
+            if all([
+                getattr(customer, 'region', None),
+                getattr(customer, 'province', None),
+                getattr(customer, 'citymun', None),
+                getattr(customer, 'barangay', None),
+                getattr(customer, 'street_address', None),
+                getattr(customer, 'postal_code', None),
+            ]):
+                try:
+                    SavedAddress.objects.create(
+                        customer=customer,
+                        region=customer.region,
+                        province=customer.province,
+                        citymun=customer.citymun,
+                        barangay=customer.barangay,
+                        street_address=customer.street_address,
+                        postal_code=customer.postal_code,
+                        is_default=True,
+                    )
+                    addresses = SavedAddress.objects.filter(customer=customer)
+                except Exception as e:
+                    logger.warning(f"Unable to seed default SavedAddress: {e}")
         addresses_data = [{
             'id': addr.id,
             'region': addr.get_region_display() if hasattr(addr, 'get_region_display') else addr.region,
@@ -3281,6 +3347,91 @@ def manage_addresses_view(request):
         'saved_addresses': saved_addresses,
     }
     return render(request, 'ecom/manage_addresses.html', context)
+
+@login_required(login_url='customerlogin')
+@user_passes_test(is_customer)
+def addresses_tab_partial(request):
+    """Partial for My Profile › Addresses tab showing current/saved addresses inlined."""
+    customer = Customer.objects.get(user=request.user)
+    saved_addresses = SavedAddress.objects.filter(customer=customer).order_by('-is_default', '-updated_at')
+    # Seed an initial SavedAddress from the customer's profile if none exists
+    if not saved_addresses.exists():
+        if all([
+            getattr(customer, 'region', None),
+            getattr(customer, 'province', None),
+            getattr(customer, 'citymun', None),
+            getattr(customer, 'barangay', None),
+            getattr(customer, 'street_address', None),
+            getattr(customer, 'postal_code', None),
+        ]):
+            try:
+                SavedAddress.objects.create(
+                    customer=customer,
+                    region=customer.region,
+                    province=customer.province,
+                    citymun=customer.citymun,
+                    barangay=customer.barangay,
+                    street_address=customer.street_address,
+                    postal_code=customer.postal_code,
+                    is_default=True,
+                )
+                saved_addresses = SavedAddress.objects.filter(customer=customer).order_by('-is_default', '-updated_at')
+            except Exception as e:
+                logger.warning(f"Unable to seed default SavedAddress in tab: {e}")
+    # Always render fragment for AJAX; if accessed directly, still show fragment
+    return render(request, 'ecom/fragments/addresses_tab.html', {
+        'customer': customer,
+        'saved_addresses': saved_addresses,
+    })
+
+@login_required
+@user_passes_test(is_customer)
+def update_saved_address(request, address_id):
+    """Update an existing SavedAddress via modal inside Addresses tab.
+    Also optionally sync customer's name and phone if provided.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+    try:
+        customer = Customer.objects.get(user=request.user)
+        address = SavedAddress.objects.get(id=address_id, customer=customer)
+    except (Customer.DoesNotExist, SavedAddress.DoesNotExist):
+        return JsonResponse({'status': 'error', 'message': 'Address not found'}, status=404)
+
+    # Update address fields
+    address.region = request.POST.get('region') or address.region
+    address.province = request.POST.get('province') or address.province
+    address.citymun = request.POST.get('citymun') or address.citymun
+    address.barangay = request.POST.get('barangay') or address.barangay
+    address.street_address = request.POST.get('street_address') or address.street_address
+    address.postal_code = request.POST.get('postal_code') or address.postal_code
+    address.save()
+
+    # Optionally update customer name/phone
+    full_name = request.POST.get('full_name')
+    phone = request.POST.get('phone')
+    try:
+        if full_name:
+            parts = full_name.strip().split(' ')
+            # naive split: first token as first_name, rest as last_name
+            customer.user.first_name = parts[0]
+            customer.user.last_name = ' '.join(parts[1:])
+            customer.user.save()
+        if phone:
+            # store raw digits without +63 and spaces
+            raw = ''.join(ch for ch in phone if ch.isdigit())
+            if raw.startswith('63'):
+                raw = raw[2:]
+            if raw.startswith('0'):
+                raw = raw[1:]
+            customer.mobile = raw
+            customer.save()
+    except Exception as e:
+        # Don't fail the address update if name/phone sync fails
+        logger.warning(f"Customer info sync failed during address update: {e}")
+
+    return JsonResponse({'status': 'success', 'message': 'Address updated successfully'})
 
 # AI Designer View
 def ai_designer_view(request):

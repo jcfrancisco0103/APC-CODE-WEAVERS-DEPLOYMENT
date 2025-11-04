@@ -117,6 +117,7 @@ urlpatterns = [
     path('edit-profile', views.edit_profile_view,name='edit-profile'),
     path('change-password', views.change_password_view, name='change-password'),
     path('change-address', views.change_address_view, name='change-address'),
+    path('addresses-tab', views.addresses_tab_partial, name='addresses-tab'),
     path('download-invoice/<int:order_id>/', views.download_invoice_view, name='download-invoice'),
     path('customer/confirm-received/<int:order_id>/', views.customer_confirm_received, name='customer-confirm-received'),
     path('add-to-cart/<int:pk>/', views.add_to_cart_view,name='add-to-cart'),
@@ -159,6 +160,7 @@ urlpatterns = [
     path('get-saved-addresses/', views.get_saved_addresses, name='get-saved-addresses'),
     path('set-default-address/<int:address_id>/', views.set_default_address, name='set-default-address'),
     path('delete-address/<int:address_id>/', views.delete_address, name='delete-address'),
+    path('update-saved-address/<int:address_id>/', views.update_saved_address, name='update-saved-address'),
     
     # Wishlist functionality
     path('add-to-wishlist/<int:product_id>/', wishlist_views.add_to_wishlist, name='add-to-wishlist'),

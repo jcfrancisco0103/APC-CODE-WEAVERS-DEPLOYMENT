@@ -1,0 +1,253 @@
+{% load static %}
+{% load custom_filters %}
+{% load phone_format %}
+<style>
+  .addr-wrap { padding: 0; }
+  .addr-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .addr-title { font-size:1.25rem; font-weight:700; color:#111827; }
+  .addr-add-btn { background:#ef4444; color:#fff; border:none; padding:8px 12px; border-radius:8px; font-weight:700; }
+  .addr-list { border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#fff; }
+  .addr-item { display:flex; justify-content:space-between; gap:12px; padding:12px; border:1px solid #e5e7eb; border-radius:10px; background:#fafafa; margin-bottom:10px; }
+  .addr-item.default { border-color:#10b981; background:#f8fffb; }
+  .addr-lines { color:#374151; font-size:.95rem; }
+  .addr-name { font-weight:700; color:#111827; }
+  .addr-actions { display:flex; gap:8px; align-items:center; }
+  .btn-link { background:#fff; border:1px solid #d1d5db; padding:6px 10px; border-radius:8px; font-weight:600; color:#374151; }
+  .btn-danger { background:#dc2626; color:#fff; border:none; }
+  .btn-primary { background:#2563eb; color:#fff; border:none; }
+  .btn-success { background:#10b981; color:#fff; border:none; }
+
+  /* Modal */
+  .modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:1000; }
+  .modal-card { width:680px; max-width:95vw; background:#fff; border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,.25); }
+  .modal-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; }
+  .modal-title { font-size:1.1rem; font-weight:700; color:#111827; }
+  .modal-body { padding:16px; }
+  .modal-actions { display:flex; gap:10px; padding:14px 16px; border-top:1px solid #e5e7eb; justify-content:flex-end; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-group { margin-bottom:12px; }
+  .form-group label { display:block; font-weight:600; color:#374151; margin-bottom:6px; }
+  .form-control { width:100%; border:1px solid #d1d5db; border-radius:10px; padding:10px; background:#f9fafb; }
+  .form-control:focus { outline:none; border-color:#2563eb; background:#fff; }
+  @media (max-width: 720px) { .form-row { grid-template-columns:1fr; } }
+</style>
+
+<div class="addr-wrap">
+  <div class="addr-header">
+    <div>
+      <div class="addr-title">My Addresses</div>
+      <div style="color:#6b7280; font-size:.95rem;"></div>
+    </div>
+    <button class="addr-add-btn" id="btnAddAddress">+ Add New Address</button>
+  </div>
+
+  {% csrf_token %}
+
+  <div class="addr-list">
+    {% for address in saved_addresses %}
+      <div class="addr-item {% if address.is_default %}default{% endif %}" data-id="{{ address.id }}"
+           data-region="{{ address.region }}" data-province="{{ address.province }}" data-citymun="{{ address.citymun }}" data-barangay="{{ address.barangay }}" data-postal="{{ address.postal_code }}" data-street="{{ address.street_address|escapejs }}">
+        <div class="addr-lines">
+          <div class="addr-name">{{ customer.user.first_name }} {{ customer.user.last_name }} <span style="color:#6b7280; font-weight:500;">({{ customer.mobile|ph_mobile_format }})</span></div>
+          <div>{{ address.street_address }}, {{ address.barangay|barangay_name }}, {{ address.citymun|citymun_name }}, {{ address.province|province_name }}, {{ address.region|region_name }}, {{ address.postal_code }}</div>
+          {% if address.is_default %}<div style="margin-top:6px;"><span style="display:inline-block;background:#10b981;color:#fff;padding:3px 8px;border-radius:999px;font-size:.8rem;font-weight:700;">Default</span></div>{% endif %}
+        </div>
+        <div class="addr-actions">
+          <button class="btn-link btnEdit">Edit</button>
+          {% if not address.is_default %}
+            <button class="btn-link" data-action="set-default">Set as default</button>
+            <button class="btn-link btn-danger" data-action="delete">Delete</button>
+          {% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div style="color:#6b7280;">Wala pang saved address. I-click ang "+ Add New Address".</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Edit/Add Modal -->
+<div class="modal-mask" id="addrModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">Edit Address</div>
+      <button class="btn-link" id="btnCloseModal">Close</button>
+    </div>
+    <div class="modal-body">
+      <form id="addrForm">
+        {% csrf_token %}
+        <input type="hidden" name="mode" id="formMode" value="edit" />
+        <input type="hidden" name="address_id" id="formAddressId" />
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" class="form-control" id="fullName" value="{{ customer.user.first_name }} {{ customer.user.last_name }}" />
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="text" class="form-control" id="phoneNumber" value="{{ customer.mobile|ph_mobile_format }}" oninput="autoFormatPHMobile(this)" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Region, Province, City, Barangay</label>
+          <div class="form-row">
+            <select id="regionSel" class="form-control"></select>
+            <select id="provinceSel" class="form-control"></select>
+          </div>
+          <div class="form-row">
+            <select id="citySel" class="form-control"></select>
+            <select id="barangaySel" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Postal Code</label>
+            <input type="text" class="form-control" id="postalCode" />
+          </div>
+          <div class="form-group">
+            <label>Street / House / Building</label>
+            <input type="text" class="form-control" id="streetAddress" />
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-link" id="btnCancelModal">Cancel</button>
+      <button class="btn-primary" id="btnSubmitModal">Submit</button>
+    </div>
+  </div>
+  </div>
+
+<script src="{% static 'js/ph-address-cascade-api.js' %}"></script>
+<script>
+  function autoFormatPHMobile(input) {
+    let value = input.value.replace(/\D/g, '');
+    if (value.startsWith('63')) value = value.slice(2);
+    if (value.startsWith('0')) value = value.slice(1);
+    if (value.length > 0) {
+      if (value.length <= 3) {}
+      else if (value.length <= 6) value = value.slice(0,3)+' '+value.slice(3);
+      else value = value.slice(0,3)+' '+value.slice(3,6)+' '+value.slice(6,10);
+      input.value = '+63 '+value;
+    }
+  }
+
+  const modal = document.getElementById('addrModal');
+  const btnClose = document.getElementById('btnCloseModal');
+  const btnCancel = document.getElementById('btnCancelModal');
+  const btnSubmit = document.getElementById('btnSubmitModal');
+  const form = document.getElementById('addrForm');
+  const titleEl = document.getElementById('modalTitle');
+  const btnAdd = document.getElementById('btnAddAddress');
+
+  function openModal(mode, payload) {
+    document.getElementById('formMode').value = mode;
+    titleEl.textContent = mode === 'add' ? 'Add New Address' : 'Edit Address';
+    modal.style.display = 'flex';
+
+    // Prefill
+    document.getElementById('formAddressId').value = payload?.id || '';
+    document.getElementById('postalCode').value = payload?.postal || '';
+    document.getElementById('streetAddress').value = payload?.street || '';
+
+    // Initialize address cascade
+    window.initPHAddressCascadeAPI({
+      region: 'regionSel', province: 'provinceSel', citymun: 'citySel', barangay: 'barangaySel'
+    });
+    // After async load, set initial codes
+    setTimeout(() => {
+      const r = document.getElementById('regionSel');
+      const p = document.getElementById('provinceSel');
+      const c = document.getElementById('citySel');
+      const b = document.getElementById('barangaySel');
+      if (payload?.region) r.value = payload.region;
+      r.dispatchEvent(new Event('change'));
+      setTimeout(() => {
+        if (payload?.province) p.value = payload.province;
+        p.dispatchEvent(new Event('change'));
+        setTimeout(() => {
+          if (payload?.citymun) c.value = payload.citymun;
+          c.dispatchEvent(new Event('change'));
+          setTimeout(() => { if (payload?.barangay) b.value = payload.barangay; }, 250);
+        }, 250);
+      }, 250);
+    }, 250);
+  }
+
+  function closeModal() { modal.style.display = 'none'; }
+
+  btnClose.onclick = closeModal; btnCancel.onclick = closeModal;
+
+  // Edit buttons
+  document.querySelectorAll('.btnEdit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const item = e.target.closest('.addr-item');
+      const payload = {
+        id: item.dataset.id,
+        region: item.dataset.region,
+        province: item.dataset.province,
+        citymun: item.dataset.citymun,
+        barangay: item.dataset.barangay,
+        postal: item.dataset.postal,
+        street: item.dataset.street
+      };
+      openModal('edit', payload);
+    });
+  });
+
+  // Add new address
+  if (btnAdd) btnAdd.addEventListener('click', () => openModal('add', {}));
+
+  // Set default / Delete actions
+  document.querySelectorAll('.addr-item [data-action="set-default"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.closest('.addr-item').dataset.id;
+      fetch(`/set-default-address/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value } })
+        .then(r=>r.json()).then(j=>{ if(j.status==='success'){ reloadTab(); } else { alert(j.message||'Error'); } });
+    });
+  });
+  document.querySelectorAll('.addr-item [data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.closest('.addr-item').dataset.id;
+      if (!confirm('Delete this address?')) return;
+      fetch(`/delete-address/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value } })
+        .then(r=>r.json()).then(j=>{ if(j.status==='success'){ reloadTab(); } else { alert(j.message||'Error'); } });
+    });
+  });
+
+  // Submit modal
+  btnSubmit.addEventListener('click', (e) => {
+    e.preventDefault();
+    const mode = document.getElementById('formMode').value;
+    const id = document.getElementById('formAddressId').value;
+    const body = new FormData();
+    body.append('region', document.getElementById('regionSel').value);
+    body.append('province', document.getElementById('provinceSel').value);
+    body.append('citymun', document.getElementById('citySel').value);
+    body.append('barangay', document.getElementById('barangaySel').value);
+    body.append('postal_code', document.getElementById('postalCode').value);
+    body.append('street_address', document.getElementById('streetAddress').value);
+    body.append('full_name', document.getElementById('fullName').value);
+    body.append('phone', document.getElementById('phoneNumber').value);
+
+    const headers = { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value };
+    const url = mode === 'add' ? '/save-address/' : `/update-saved-address/${id}/`;
+    fetch(url, { method: 'POST', body, headers })
+      .then(r=>r.json())
+      .then(j=>{
+        if (j.status === 'success') { closeModal(); reloadTab(); }
+        else { alert(j.message || 'Error saving address'); }
+      })
+      .catch(err=>{ console.error(err); alert('Network error'); });
+  });
+
+  function reloadTab() {
+    // Re-fetch this tab via parent loader
+    const evt = new CustomEvent('reload-addresses-tab');
+    window.dispatchEvent(evt);
+  }
+</script>

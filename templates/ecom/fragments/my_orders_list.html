@@ -1,0 +1,60 @@
+{% load static %}
+<style>
+  .orders-header { font-size: 1.1rem; font-weight: 700; color: #111827; margin-bottom: 12px; }
+  .order-card { border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 12px; }
+  .order-body { padding: 12px; }
+  .img-sm { width: 64px; height: 64px; object-fit: cover; }
+  .label { display:inline-block; padding:4px 10px; border-radius: 20px; font-size: 12px; }
+  .label-info { background:#bfdbfe; }
+  .label-success { background:#bbf7d0; }
+  .label-default { background:#e5e7eb; }
+  .label-danger { background:#fecaca; color:#991b1b; }
+  .label-warning { background:#fde68a; }
+  .label-primary { background:#c7d2fe; }
+</style>
+
+<div>
+  <div class="orders-header">My Orders / Tracking</div>
+
+  {% for item in orders_with_items %}
+    {% with order=item.order items=item.items %}
+    <div class="order-card">
+      <div class="order-body">
+        <div style="display:flex; align-items:flex-start; gap:12px;">
+          {% for it in items %}
+          <img src="{% static it.product.product_image.url %}" class="img-sm" alt="{{ it.product.name }}" />
+          {% endfor %}
+          <div style="flex:1;">
+            <div><strong>Status:</strong>
+              {% if order.status == 'Pending'%}
+                <span class="label label-info">{{order.status}}</span>
+              {% elif order.status == 'Delivered' %}
+                <span class="label label-success">{{order.status}}</span>
+              {% elif order.status == 'Out for Delivery' %}
+                <span class="label label-default">{{order.status}}</span>
+              {% elif order.status == 'Cancelled' %}
+                <span class="label label-danger">{{order.status}}</span>
+              {% elif order.status == 'Cancellation Requested' %}
+                <span class="label label-warning">Waiting for approval of Cancellation</span>
+              {% else %}
+                <span class="label label-primary">{{order.status}}</span>
+              {% endif %}
+            </div>
+            <div style="margin-top:10px;">
+              <a class="btn btn-primary btn-sm rounded-0" style="text-decoration:none;" href="{% url 'download-invoice' order.id items.0.product.id  %}" target="_blank">
+                <i class="fa fa-download" style="font-size: 12px;height:auto"></i> Download Invoice
+              </a>
+              {% if order.status == 'Pending' %}
+              <button type="button" class="btn btn-danger btn-sm rounded-0" data-toggle="modal" data-target="#cancelModal{{order.id}}">
+                <i class="fa fa-times" style="font-size: 12px;height:auto"></i> Cancel Order
+              </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endwith %}
+  {% endfor %}
+</div>
+
