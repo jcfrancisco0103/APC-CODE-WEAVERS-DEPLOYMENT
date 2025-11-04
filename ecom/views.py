@@ -2238,18 +2238,24 @@ def payment_success_view(request):
         transaction_id = request.GET.get('paymentId')
     elif payment_method == 'gcash':
         transaction_id = request.GET.get('transactionId') or request.GET.get('transaction_id')
-
-    if 'product_ids' in request.COOKIES:
+    # Build product keys from selection cookie if present; otherwise fallback to full cart cookie
+    product_keys = []
+    selected_keys_raw = request.COOKIES.get('selected_product_keys', '').strip()
+    if selected_keys_raw:
+        product_keys = [k for k in selected_keys_raw.split('|') if k]
+    elif 'product_ids' in request.COOKIES:
         product_ids = request.COOKIES['product_ids']
         if product_ids != "":
             product_keys = request.COOKIES['product_ids'].split('|')
-            product_ids_only = set()
-            for key in product_keys:
-                parts = key.split('_')
-                if len(parts) >= 3:
-                    product_id = parts[1]
-                    product_ids_only.add(product_id)
-            products = list(models.Product.objects.filter(id__in=product_ids_only))
+
+    if product_keys:
+        product_ids_only = set()
+        for key in product_keys:
+            parts = key.split('_')
+            if len(parts) >= 3:
+                product_id = parts[1]
+                product_ids_only.add(product_id)
+        products = list(models.Product.objects.filter(id__in=product_ids_only))
 
     # For COD, use customer's profile information
     if payment_method == 'cod':
@@ -2332,9 +2338,31 @@ def payment_success_view(request):
                 except models.InventoryItem.DoesNotExist:
                     print(f"Warning: No inventory item found for product {product.name}")
 
+    # Move selected custom items from pending cart orders to the new parent order
+    selected_custom_raw = request.COOKIES.get('selected_custom_item_ids', '').strip()
+    selected_custom_ids = set()
+    if selected_custom_raw:
+        try:
+            selected_custom_ids = {int(x) for x in selected_custom_raw.split(',') if x}
+        except ValueError:
+            selected_custom_ids = set()
+
+    try:
+        cart_orders = models.Orders.objects.filter(customer=customer, status='Pending')
+        for cart_order in cart_orders:
+            custom_items_qs = models.CustomOrderItem.objects.filter(order=cart_order, is_pre_order=False)
+            for item in custom_items_qs:
+                if not selected_custom_ids or (item.custom_item and item.custom_item.id in selected_custom_ids):
+                    item.order = parent_order
+                    item.save()
+    except Exception as e:
+        print(f"Warning: Failed to move custom items: {e}")
+
     # Clear cookies after order placement
     response = render(request, 'ecom/payment_success.html')
     response.delete_cookie('product_ids')
+    response.delete_cookie('selected_product_keys')
+    response.delete_cookie('selected_custom_item_ids')
 
     # Only clear address cookies for non-COD payments
     if payment_method != 'cod':
@@ -2677,24 +2705,20 @@ def edit_profile_view(request):
         return redirect('customer-home')
     
     if request.method == 'POST':
-        userForm = forms.CustomerUserForm(request.POST, instance=user)
-        customerForm = forms.CustomerForm(request.POST, request.FILES, instance=customer)
-        
+        userForm = forms.CustomerUserEditForm(request.POST, instance=user)
+        # Use non-address form so address fields are edited separately
+        customerForm = forms.CustomerNonAddressForm(request.POST, request.FILES, instance=customer)
+
         if userForm.is_valid() and customerForm.is_valid():
-            # Save user without changing password if it's empty
-            if not userForm.cleaned_data['password']:
-                del userForm.cleaned_data['password']
-                user = userForm.save(commit=False)
-            else:
-                user = userForm.save(commit=False)
-                user.set_password(userForm.cleaned_data['password'])
+            # Save basic user info (no password changes in Edit Profile)
+            user = userForm.save(commit=False)
             user.save()
-            
-            # Save customer form
+
+            # Save customer form (address and profile fields)
             customer = customerForm.save(commit=False)
             customer.user = user
             customer.save()
-            
+
             messages.success(request, 'Profile updated successfully!')
             return redirect('my-profile')
         else:
@@ -2706,8 +2730,8 @@ def edit_profile_view(request):
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
     else:
-        userForm = forms.CustomerUserForm(instance=user)
-        customerForm = forms.CustomerForm(instance=customer)
+        userForm = forms.CustomerUserEditForm(instance=user)
+        customerForm = forms.CustomerNonAddressForm(instance=customer)
     
     return render(request, 'ecom/edit_profile.html', {
         'userForm': userForm,
@@ -2715,6 +2739,72 @@ def edit_profile_view(request):
     })
 
 
+@login_required(login_url='customerlogin')
+@user_passes_test(is_customer)
+def change_address_view(request):
+    try:
+        customer = models.Customer.objects.get(user_id=request.user.id)
+    except models.Customer.DoesNotExist:
+        messages.error(request, 'Customer profile not found. Please contact support.')
+        return redirect('customer-home')
+
+    if request.method == 'POST':
+        form = forms.ShippingAddressForm(request.POST, instance=customer)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Address updated successfully!')
+            return redirect('my-profile')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
+    else:
+        form = forms.ShippingAddressForm(instance=customer)
+
+    return render(request, 'ecom/change_address.html', {
+        'form': form,
+        'customer': customer,
+    })
+
+
+@login_required(login_url='customerlogin')
+@user_passes_test(is_customer)
+def change_password_view(request):
+    import re
+    if request.method == 'POST':
+        old_password = request.POST.get('old_password', '')
+        new_password = request.POST.get('new_password', '')
+        confirm_password = request.POST.get('confirm_new_password', '')
+
+        # Validate old password
+        if not request.user.check_password(old_password):
+            messages.error(request, 'Old password is incorrect.')
+        elif new_password != confirm_password:
+            messages.error(request, 'New passwords do not match.')
+        else:
+            # Basic password strength checks (consistent with signup)
+            errors = []
+            if len(new_password) < 8:
+                errors.append('Password must be at least 8 characters long.')
+            if not re.search(r'[A-Z]', new_password):
+                errors.append('Password must include at least one uppercase letter.')
+            if not re.search(r'\d', new_password):
+                errors.append('Password must include at least one number.')
+            if not re.search(r'[!@#$%*]', new_password):
+                errors.append('Password must include at least one symbol (e.g., !, @, #, $, %, *).')
+
+            if errors:
+                for e in errors:
+                    messages.error(request, e)
+            else:
+                request.user.set_password(new_password)
+                request.user.save()
+                from django.contrib.auth import update_session_auth_hash
+                update_session_auth_hash(request, request.user)
+                messages.success(request, 'Password updated successfully.')
+                return redirect('my-profile')
+
+    return render(request, 'ecom/change_password.html')
 
 
 #---------------------------------------------------------------------------------

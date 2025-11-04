@@ -544,6 +544,9 @@
     <table class="table table-hover table-bordered" id="dev-table">
       <thead>
         <tr>
+          <th style="width: 40px;">
+            <input type="checkbox" id="selectAllItems" title="Select all" />
+          </th>
           <th>Name</th>
           <th>Image</th>
           <th>Price</th>
@@ -553,6 +556,14 @@
       </thead>
       {% for product in products %}
         <tr>
+          <td>
+            <input type="checkbox"
+                   class="select-product"
+                   data-key="product_{{ product.product.id }}_{{ product.size }}"
+                   data-price="{{ product.product.price }}"
+                   data-qty="{{ product.quantity }}"
+                   title="Select this item" />
+          </td>
           <td>{{ product.product.name }}</td>
           <td><img src="{{ product.product.product_image.url }}" alt="Product Image" height="50px" width="50px"></td>
           <td>₱ {{ product.product.price|floatformat:2 }}</td>
@@ -569,6 +580,14 @@
       
       {% for custom_item in custom_items %}
         <tr style="background-color: #f8f9fa;">
+          <td>
+            <input type="checkbox"
+                   class="select-custom-item"
+                   data-id="{{ custom_item.custom_item.id }}"
+                   data-price="{{ custom_item.price }}"
+                   data-qty="{{ custom_item.quantity }}"
+                   title="Select this custom item" />
+          </td>
           <td>
             <strong>Custom Jersey Design</strong>
             {% if custom_item.custom_item.additional_info %}
@@ -757,7 +776,7 @@
       </div>
       <div class="checkout--footer">
         <button class="pay-btn" id="openModalBtn"> 
-          Checkout
+          Checkout Selected
           <svg class="pay-svgIcon" viewBox="0 0 576 512">
             <path d="M512 80c8.8 0 16 7.2 16 16v32H48V96c0-8.8 7.2-16 16-16H512zm16 144V416c0 8.8-7.2 16-16 16H64c-8.8 0-16-7.2-16-16V224H528zM64 32C28.7 32 0 60.7 0 96V416c0 35.3 28.7 64 64 64H512c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm56 304c-13.3 0-24 10.7-24 24s10.7 24 24 24h48c13.3 0 24-10.7 24-24s-10.7-24-24-24H120zm128 0c-13.3 0-24 10.7-24 24s10.7 24 24 24H360c13.3 0 24-10.7 24-24s-10.7-24-24-24H248z"></path>
           </svg>
@@ -812,9 +831,37 @@
     
     <script>
       // Global variables for calculations
-      let subtotal = parseFloat("{{ total|floatformat:'2'|default:'0.00' }}");
+      let fullSubtotal = parseFloat("{{ total|floatformat:'2'|default:'0.00' }}");
+      let subtotal = fullSubtotal; // will be recalculated for selections
       let deliveryFee = parseFloat("{{ delivery_fee|default:'50' }}");
       let vatRate = 0.12;
+
+      function getSelectedProductKeys() {
+        const boxes = Array.from(document.querySelectorAll('.select-product:checked'));
+        return boxes.map(b => b.dataset.key);
+      }
+
+      function getSelectedCustomItemIds() {
+        const boxes = Array.from(document.querySelectorAll('.select-custom-item:checked'));
+        return boxes.map(b => b.dataset.id);
+      }
+
+      function calculateSelectedSubtotal() {
+        const productRows = Array.from(document.querySelectorAll('.select-product:checked'));
+        const customRows = Array.from(document.querySelectorAll('.select-custom-item:checked'));
+        let total = 0;
+        productRows.forEach(b => {
+          const price = parseFloat(b.dataset.price || '0');
+          const qty = parseInt(b.dataset.qty || '1');
+          total += price * qty;
+        });
+        customRows.forEach(b => {
+          const price = parseFloat(b.dataset.price || '0');
+          const qty = parseInt(b.dataset.qty || '1');
+          total += price * qty;
+        });
+        return total;
+      }
       
       // Function to select a saved address and set it as default
       function selectAddress(event, addressId, fullAddress) {
@@ -1184,7 +1231,39 @@
       const codForm = document.getElementById('cod-form');
       const paymentButtons = document.querySelectorAll('.payment-method-btn');
     
-      // Check if cart is empty (including both regular products and custom items)
+      // Select all toggle
+      const selectAllItems = document.getElementById('selectAllItems');
+      if (selectAllItems) {
+        selectAllItems.addEventListener('change', () => {
+          const allBoxes = document.querySelectorAll('.select-product, .select-custom-item');
+          allBoxes.forEach(b => b.checked = selectAllItems.checked);
+          // Recalculate totals on change
+          subtotal = calculateSelectedSubtotal();
+          calculateTotals();
+        });
+      }
+
+      // Recalculate totals each time selection changes
+      document.addEventListener('change', function(e) {
+        if (e.target && (e.target.classList.contains('select-product') || e.target.classList.contains('select-custom-item'))) {
+          subtotal = calculateSelectedSubtotal();
+          calculateTotals();
+        }
+      });
+
+      function setSelectionCookies() {
+        const selectedKeys = getSelectedProductKeys();
+        const selectedCustomIds = getSelectedCustomItemIds();
+        // Persist selections for server-side processing
+        document.cookie = `selected_product_keys=${selectedKeys.join('|')};path=/`;
+        document.cookie = `selected_custom_item_ids=${selectedCustomIds.join(',')};path=/`;
+      }
+
+      function hasSelection() {
+        return getSelectedProductKeys().length > 0 || getSelectedCustomItemIds().length > 0;
+      }
+
+      // Check if cart is empty overall
       const cartIsEmpty = {{ products|length|default_if_none:0 }} === 0 && {{ custom_items|length|default_if_none:0 }} === 0;
     
       openModalBtn.addEventListener('click', (e) => {
@@ -1193,6 +1272,16 @@
           alert('Your cart is empty. Please add items before proceeding to checkout.');
           return;
         }
+        if (!hasSelection()) {
+          e.preventDefault();
+          alert('Please select at least one item to checkout.');
+          return;
+        }
+        // Persist selection for the backend
+        setSelectionCookies();
+        // Use selected subtotal for totals
+        subtotal = calculateSelectedSubtotal();
+        calculateTotals();
         modal.style.display = 'flex';
       });
     
@@ -1229,6 +1318,11 @@
       // COD Form Submission
       document.getElementById('cod-checkout-form').addEventListener('submit', (e) => {
         e.preventDefault();
+        if (!hasSelection()) {
+          alert('Select items to place order.');
+          return;
+        }
+        setSelectionCookies();
         window.location.href = '/payment-success?method=cod';
       });
     
@@ -1240,6 +1334,11 @@
       // PayPal Button
       paypal.Buttons({
         createOrder: function (data, actions) {
+          if (!hasSelection()) {
+            alert('Please select items to checkout.');
+            return;
+          }
+          setSelectionCookies();
           const grandTotal = calculateTotals();
           return actions.order.create({
             purchase_units: [{

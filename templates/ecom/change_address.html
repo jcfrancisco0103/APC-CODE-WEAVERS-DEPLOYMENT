@@ -1,0 +1,86 @@
+{% extends 'ecom/customer_base.html' %}
+{% load widget_tweaks %}
+{% load static %}
+{% block content %}
+
+<head>
+  <style>
+    body { background-color: #ffffff; }
+    .addr-card {
+      max-width: 700px; margin: 40px auto 60px auto; background: #fff;
+      border-radius: 18px; box-shadow: 0 4px 24px rgba(0,0,0,0.10); padding: 36px 32px 28px 32px;
+    }
+    .addr-title { font-size: 2rem; font-weight: 700; color: #005d94; margin-bottom: 18px; text-align: center; letter-spacing: 1px; }
+    .addr-form .form-group { margin-bottom: 18px; position: relative; }
+    .addr-form .form-control { border-radius: 1.2rem; padding-left: 45px; font-size: 1rem; box-shadow: none; border: 1px solid #d1d5db; background: #f8fafc; transition: border 0.2s; }
+    .addr-form .form-control:focus { border: 1.5px solid #005d94; background: #fff; }
+    .addr-form .input-icon { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); color: #b0b0b0; font-size: 1.1rem; pointer-events: none; z-index: 2; }
+    .addr-form .btnSubmit { border: none; border-radius: 1.5rem; padding: 10px 36px; background: linear-gradient(90deg, #0072ff 0%, #005d94 100%); color: #fff; font-weight: 600; font-size: 1.1rem; margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: background 0.2s; }
+    .addr-form .btnSubmit:hover { background: linear-gradient(90deg, #005d94 0%, #0072ff 100%); }
+    @media (max-width: 600px) { .addr-card { padding: 18px 6px; } }
+  </style>
+  <script src="{% static 'ecom/ph-address-cascade.js' %}"></script>
+  <script>
+    window.initialRegion = "{{ form.region.value|default_if_none:customer.region|escapejs }}";
+    window.initialProvince = "{{ form.province.value|default_if_none:customer.province|escapejs }}";
+    window.initialCitymun = "{{ form.citymun.value|default_if_none:customer.citymun|escapejs }}";
+    window.initialBarangay = "{{ form.barangay.value|default_if_none:customer.barangay|escapejs }}";
+    document.addEventListener('DOMContentLoaded', function(){
+      if (window.initPHAddressCascade) {
+        window.initPHAddressCascade({
+          region: 'id_region',
+          province: 'id_province',
+          citymun: 'id_citymun',
+          barangay: 'id_barangay',
+          staticPath: "{% static 'ecom/' %}"
+        });
+      }
+    });
+  </script>
+</head>
+
+<br><br><br><br><br><br>
+
+<div class="addr-card">
+  <div class="addr-title">Change Address</div>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-success" style="margin: 0 auto; width: 80%;">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" class="addr-form">
+    {% csrf_token %}
+    <div class="form-group">
+      <span class="input-icon"><i class="fa fa-map"></i></span>
+      <select name="region" id="id_region" class="form-control"></select>
+    </div>
+    <div class="form-group">
+      <span class="input-icon"><i class="fa fa-map-marker"></i></span>
+      <select name="province" id="id_province" class="form-control"></select>
+    </div>
+    <div class="form-group">
+      <span class="input-icon"><i class="fa fa-building"></i></span>
+      <select name="citymun" id="id_citymun" class="form-control"></select>
+    </div>
+    <div class="form-group">
+      <span class="input-icon"><i class="fa fa-location-arrow"></i></span>
+      <select name="barangay" id="id_barangay" class="form-control"></select>
+    </div>
+    <div class="form-group">
+      <span class="input-icon"><i class="fa fa-home"></i></span>
+      {% render_field form.street_address class="form-control" placeholder="Street Address" %}
+    </div>
+    <div class="form-group">
+      <span class="input-icon"><i class="fa fa-hashtag"></i></span>
+      {% render_field form.postal_code class="form-control" placeholder="Postal Code" %}
+    </div>
+    <div style="text-align:center; display:flex; gap:12px; justify-content:center; align-items:center;">
+      <button type="submit" class="btnSubmit">Save Address</button>
+      <a href="{% url 'my-profile' %}" class="btnSubmit" style="background:#6b7280;">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock content %}
+

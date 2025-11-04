@@ -60,6 +60,33 @@ class CustomerUserForm(forms.ModelForm):
             raise forms.ValidationError("Passwords do not match")
 
 
+# User edit form (no password fields)
+class CustomerUserEditForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'username', 'email']
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username:
+            qs = User.objects.filter(username=username)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError("Unable to use this username. Please choose another.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email:
+            qs = User.objects.filter(email=email)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError("An account with this email already exists.")
+        return email
+
+
 # Customer personal details form
 class CustomerForm(forms.ModelForm):
     def clean_mobile(self):
@@ -159,6 +186,21 @@ class CustomerForm(forms.ModelForm):
             self.add_error('province', 'Province is required for this region.')
         
         return cleaned_data
+
+
+# Edit Profile form without address fields
+class CustomerNonAddressForm(forms.ModelForm):
+    def clean_mobile(self):
+        mobile = self.cleaned_data.get('mobile', '')
+        # Accepts format: 956 837 0169 (10 digits, 2 spaces)
+        pattern = r'^\d{3} \d{3} \d{4}$'
+        if not re.match(pattern, mobile):
+            raise forms.ValidationError("Enter number as '956 837 0169' (10 digits, spaces required).")
+        return mobile
+
+    class Meta:
+        model = models.Customer
+        fields = ['mobile', 'profile_pic']
 
 
 # Extended signup form with privacy agreement

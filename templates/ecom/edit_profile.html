@@ -105,116 +105,7 @@
             .edit-profile-card { padding: 18px 6px; }
         }
     </style>
-    <!-- Load the PH address cascade script from the correct static path -->
-    <script src="{% static 'ecom/ph-address-cascade.js' %}"></script>
-    <script>
-      // Pass initial values from Django to JS
-      const initialRegion = "{{ customerForm.region.value|escapejs }}";
-      const initialProvince = "{{ customerForm.province.value|escapejs }}";
-      const initialCitymun = "{{ customerForm.citymun.value|escapejs }}";
-      const initialBarangay = "{{ customerForm.barangay.value|escapejs }}";
-
-      // Map PSA region codes to Django codes
-      const regionCodeMap = {
-        '130000000': 'NCR',
-        '140000000': 'CAR',
-        '010000000': 'R1',
-        '020000000': 'R2',
-        '030000000': 'R3',
-        '040000000': 'R4A',
-        '170000000': 'R4B',
-        '050000000': 'R5',
-        '060000000': 'R6',
-        '070000000': 'R7',
-        '080000000': 'R8',
-        '090000000': 'R9',
-        '100000000': 'R10',
-        '110000000': 'R11',
-        '120000000': 'R12',
-        '160000000': 'R13',
-        '150000000': 'BARMM'
-      };
-
-      function getMappedRegionCode() {
-        let psaCode = document.getElementById('id_region').value;
-        if (psaCode.length > 9) psaCode = psaCode.slice(0, 9);
-        return regionCodeMap[psaCode] || '';
-      }
-
-      document.addEventListener('DOMContentLoaded', function() {
-        if (window.initPHAddressCascade) {
-          // Initialize using correct element IDs and static directory for JSON files
-          window.initPHAddressCascade({
-            region: 'id_region',
-            province: 'id_province',
-            citymun: 'id_citymun',
-            barangay: 'id_barangay',
-            staticPath: "{% static 'ecom/' %}"
-          });
-
-          // Helper: set select option by matching value OR displayed text
-          function setSelectByValueOrText(selectEl, value) {
-            if (!selectEl || !value) return;
-            const opts = Array.from(selectEl.options);
-            const byValue = opts.find(o => String(o.value) === String(value));
-            if (byValue) { selectEl.value = byValue.value; return; }
-            const byText = opts.find(o => String(o.textContent).trim() === String(value).trim());
-            if (byText) { selectEl.value = byText.value; }
-          }
-
-          // Set initial values after dropdowns are populated
-          setTimeout(function() {
-            if (initialRegion) {
-              const sel = document.getElementById('id_region');
-              setSelectByValueOrText(sel, initialRegion);
-              sel && sel.dispatchEvent(new Event('change'));
-            }
-          }, 400);
-          setTimeout(function() {
-            if (initialProvince) {
-              const sel = document.getElementById('id_province');
-              setSelectByValueOrText(sel, initialProvince);
-              sel && sel.dispatchEvent(new Event('change'));
-            }
-          }, 800);
-          setTimeout(function() {
-            if (initialCitymun) {
-              const sel = document.getElementById('id_citymun');
-              setSelectByValueOrText(sel, initialCitymun);
-              sel && sel.dispatchEvent(new Event('change'));
-            }
-          }, 1200);
-          setTimeout(function() {
-            if (initialBarangay) {
-              const sel = document.getElementById('id_barangay');
-              setSelectByValueOrText(sel, initialBarangay);
-            }
-          }, 1600);
-        }
-
-        // On form submit, set region value to Django code using a hidden input
-        const form = document.querySelector('form.edit-profile-form');
-        let hiddenRegionInput = document.getElementById('region_django_code');
-        if (!hiddenRegionInput) {
-          hiddenRegionInput = document.createElement('input');
-          hiddenRegionInput.type = 'hidden';
-          hiddenRegionInput.name = 'region';
-          hiddenRegionInput.id = 'region_django_code';
-          form.appendChild(hiddenRegionInput);
-        }
-        if (form) {
-          form.addEventListener('submit', function(e) {
-            let mapped = getMappedRegionCode();
-            if (mapped) {
-              hiddenRegionInput.value = mapped;
-            } else {
-              e.preventDefault();
-              alert('Invalid region selected. Please select a valid region.');
-            }
-          });
-        }
-      });
-    </script>
+    <!-- Address fields moved to Change Address page -->
 </head>
 <br><br><br><br><br><br>
 
@@ -243,41 +134,9 @@
                     <span class="input-icon"><i class="fa fa-user-circle"></i></span>
                     {% render_field userForm.username class="form-control" placeholder="Username" %}
                 </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-lock"></i></span>
-                    {% render_field userForm.password class="form-control" placeholder="Password" %}
-                </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-lock"></i></span>
-                    {% render_field userForm.confirm_password class="form-control" placeholder="Confirm Password" %}
-                </div>
+                <!-- Password fields removed; use separate Change Password settings -->
             </div>
             <div class="col-md-6">
-                <!-- Address Section: Region, Province, City/Municipality, Barangay -->
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-map"></i></span>
-                    {% render_field customerForm.region class="form-control" id="id_region" %}
-                </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-map-marker"></i></span>
-                    {% render_field customerForm.province class="form-control" id="id_province" %}
-                </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-building"></i></span>
-                    {% render_field customerForm.citymun class="form-control" id="id_citymun" %}
-                </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-location-arrow"></i></span>
-                    {% render_field customerForm.barangay class="form-control" id="id_barangay" %}
-                </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-home"></i></span>
-                    {% render_field customerForm.street_address class="form-control" placeholder="Street Address" %}
-                </div>
-                <div class="form-group">
-                    <span class="input-icon"><i class="fa fa-hashtag"></i></span>
-                    {% render_field customerForm.postal_code class="form-control" placeholder="Postal Code" %}
-                </div>
                 <div class="form-group">
                     <span class="input-icon"><i class="fa fa-phone"></i></span>
                     {% render_field customerForm.mobile class="form-control" id="mobile_number" placeholder="956 837 0169" maxlength="13" minlength="13" pattern="^\d{3} \d{3} \d{4}$" oninput="autoFormatPHMobile(this)" %}
@@ -295,8 +154,10 @@
                 </div>
             </div>
         </div>
-        <div style="text-align:center;">
+        <div style="text-align:center; display:flex; gap:12px; justify-content:center; align-items:center;">
             <button type="submit" class="btnSubmit">Save</button>
+            <a href="{% url 'change-password' %}" class="btnSubmit" style="background:#6b7280;">Change Password</a>
+            <a href="{% url 'change-address' %}" class="btnSubmit" style="background:#4b5563;">Change Address</a>
         </div>
     </form>
 </div>
