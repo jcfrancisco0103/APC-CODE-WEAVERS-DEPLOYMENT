@@ -1,0 +1,42 @@
+# Exclude local virtualenvs and large build artifacts
+pbl/
+.venv/
+venv/
+env/
+env.bak/
+
+# Python caches and logs
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+*.log
+logs/
+
+# Databases and local media/static outputs
+db.sqlite3
+*.sqlite3
+staticfiles/
+
+# Large archives and binaries
+ecommerce.zip
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# VCS and CI metadata
+.git/
+.gitignore
+.gitmodules
+.github/
+
+# Other common heavy folders
+node_modules/
+dist/
+build/
+coverage/
+*.ipynb
+.DS_Store
