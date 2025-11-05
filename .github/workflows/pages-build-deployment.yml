@@ -25,6 +25,7 @@ jobs:
       - name: Prepare minimal Pages site
         run: |
           mkdir -p _site
+          touch _site/.nojekyll
           echo "<!doctype html><html><head><meta charset=\"utf-8\"><title>Static Placeholder</title><style>body{font-family:system-ui,Segoe UI,Arial;padding:2rem;line-height:1.6}</style></head><body><h1>Static Site Placeholder</h1><p>This repository’s dynamic application deploys to Railway/DigitalOcean.</p><p>This placeholder exists for GitHub Pages and can be re-enabled any time via this workflow.</p></body></html>" > _site/index.html
 
       - name: Upload Pages artifact
