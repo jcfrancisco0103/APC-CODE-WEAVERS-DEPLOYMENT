@@ -1,0 +1,15 @@
+title: Code Weavers Inventory System 2D Designer
+description: Static Pages config to avoid scanning dev folders
+exclude:
+  - pbl
+  - static
+  - staticfiles
+  - media
+  - logs
+  - .github
+  - t-shirt-designer-webapp
+  - ecommerce.zip
+  - node_modules
+  - venv
+  - .venv
+  - __pycache__
