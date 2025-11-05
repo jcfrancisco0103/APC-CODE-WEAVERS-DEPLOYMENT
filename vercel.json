@@ -7,7 +7,7 @@
     { "src": "media/**/*", "use": "@vercel/static" }
   ],
   "functions": {
-    "ecommerce/**": {
+    "ecommerce/wsgi.py": {
       "excludeFiles": "media/**"
     }
   },
