@@ -410,12 +410,14 @@ def multi_step_signup_view(request, step=1):
     """Multi-step signup process"""
     step = int(step)
     
-    # Initialize session data if not exists
-    if 'signup_data' not in request.session:
-        request.session['signup_data'] = {}
+    # Avoid writing to session on GET to prevent DB errors on cold starts.
+    # We'll only create/modify session data during POST handling.
     
     # Handle form submission
     if request.method == 'POST':
+        # Ensure signup_data dict exists when processing form submissions
+        if 'signup_data' not in request.session:
+            request.session['signup_data'] = {}
         if step == 1:
             form = forms.PersonalInformationForm(request.POST, request.FILES)
             if form.is_valid():
