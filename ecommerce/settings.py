@@ -28,7 +28,7 @@ SECRET_KEY = config('SECRET_KEY', default='#vw(03o=(9kbvg!&2d5i!2$_58x@_-3l4wujp
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '147.185.221.29', '147.185.221.29:64472', 'worksteamwear.playit.pub','147.185.221.16:24531','147.185.221.16','147.185.221.212','*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '147.185.221.29', '147.185.221.29:64472', 'worksteamwear.playit.pub','147.185.221.16:24531','147.185.221.16','147.185.221.212','147.185.221.20','147.185.221.20:4104','*']
 
 # Base URL for generating absolute links in emails (optional override)
 PUBLIC_BASE_URL = config('PUBLIC_BASE_URL', default='')
