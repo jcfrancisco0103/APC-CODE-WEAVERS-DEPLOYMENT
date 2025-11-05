@@ -23,10 +23,25 @@ if os.environ.get('VERCEL'):
         import pathlib
         db_path = pathlib.Path('/tmp/db.sqlite3')
         flag_path = pathlib.Path('/tmp/.migrated')
-        if not flag_path.exists():
-            import django
-            django.setup()
-            from django.core.management import call_command
+        import django
+        django.setup()
+        from django.core.management import call_command
+
+        # Optional: reset the database on boot if explicitly requested
+        if os.getenv('RESET_DB_ON_BOOT', '') == '1':
+            try:
+                # Wipe data then re-apply migrations
+                call_command('flush', interactive=False)
+            except Exception as e:
+                import sys
+                print(f"[WSGI] Flush step failed: {e}", file=sys.stderr)
+            try:
+                call_command('migrate', interactive=False, run_syncdb=True, verbosity=0)
+            except Exception as e:
+                import sys
+                print(f"[WSGI] Migrate after flush failed: {e}", file=sys.stderr)
+            flag_path.touch()
+        elif not flag_path.exists():
             # Create DB and apply migrations non-interactively
             call_command('migrate', interactive=False, run_syncdb=True, verbosity=0)
             flag_path.touch()
