@@ -8,6 +8,8 @@ https://docs.djangoproject.com/en/3.0/howto/deployment/wsgi/
 """
 
 import os
+import tempfile
+from pathlib import Path
 
 from django.core.wsgi import get_wsgi_application
 
@@ -17,12 +19,12 @@ if os.environ.get('VERCEL'):
 else:
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecommerce.settings')
 
-# On Vercel cold start, ensure the SQLite DB in /tmp exists by running migrations.
+# On Vercel cold start, ensure the SQLite DB temp directory exists and run migrations.
 if os.environ.get('VERCEL'):
     try:
-        import pathlib
-        db_path = pathlib.Path('/tmp/db.sqlite3')
-        flag_path = pathlib.Path('/tmp/.migrated')
+        temp_dir = Path(tempfile.gettempdir())
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        flag_path = temp_dir / '.migrated'
         import django
         django.setup()
         from django.core.management import call_command

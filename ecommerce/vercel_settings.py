@@ -1,5 +1,7 @@
 from .settings import *
 import os
+import tempfile
+from pathlib import Path
 
 # Production defaults for Vercel; allow temporary debug via env
 DEBUG = os.getenv('VERCEL_DEBUG', '') == '1'
@@ -17,12 +19,18 @@ ALLOWED_HOSTS = [
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Use ephemeral SQLite in /tmp when DATABASE_URL is not provided
+# Use ephemeral SQLite in temp dir when DATABASE_URL is not provided
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 if not DATABASE_URL:
+    SQLITE_DB_PATH = os.getenv('SQLITE_DB_PATH', os.path.join(tempfile.gettempdir(), 'db.sqlite3'))
+    # Ensure the temp directory exists in serverless environments
+    try:
+        Path(os.path.dirname(SQLITE_DB_PATH)).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': '/tmp/db.sqlite3',
+        'NAME': SQLITE_DB_PATH,
     }
 
 # CSRF trusted origins for Vercel and your domain
