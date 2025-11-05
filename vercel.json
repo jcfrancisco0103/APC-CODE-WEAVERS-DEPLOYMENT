@@ -5,21 +5,7 @@
   ],
   "functions": {
     "ecommerce/wsgi.py": {
-      "excludeFiles": [
-        "pbl/**",
-        "static/**",
-        "staticfiles/**",
-        "media/**",
-        "logs/**",
-        "tests/**",
-        "docs/**",
-        "t-shirt-designer-webapp/**",
-        "ecommerce.zip",
-        "*.zip",
-        "*.tar",
-        "*.tar.gz",
-        "*.tgz"
-      ]
+      "excludeFiles": "{pbl/**,static/**,staticfiles/**,media/**,logs/**,tests/**,docs/**,t-shirt-designer-webapp/**,ecommerce.zip,*.zip,*.tar,*.tar.gz,*.tgz}"
     }
   },
   "routes": [
