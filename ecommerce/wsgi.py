@@ -36,3 +36,6 @@ if os.environ.get('VERCEL'):
         print(f"[WSGI] Migration step failed: {e}", file=sys.stderr)
 
 application = get_wsgi_application()
+
+# Expose 'app' alias for Vercel's Python runtime
+app = application
