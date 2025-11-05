@@ -58,6 +58,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://worksteamwear.shop',
     'http://www.worksteamwear.shop',
     'https://www.worksteamwear.shop',
+    'https://ecom.worksteamwear.shop',
 ]
 
 
