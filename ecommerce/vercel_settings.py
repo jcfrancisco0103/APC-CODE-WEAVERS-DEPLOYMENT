@@ -47,6 +47,39 @@ CSRF_TRUSTED_ORIGINS = [
 # Social auth should report HTTPS behind proxy
 SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
 
+# On Vercel, disable social-auth to avoid heavy deps and reduce bundle size
+# Remove 'social_django' from INSTALLED_APPS if present
+INSTALLED_APPS = [app for app in INSTALLED_APPS if app != 'social_django']
+
+# Remove social auth context processors from templates
+for tpl in TEMPLATES:
+    ctx = tpl.get('OPTIONS', {}).get('context_processors', [])
+    tpl['OPTIONS']['context_processors'] = [
+        cp for cp in ctx
+        if cp not in (
+            'social_django.context_processors.backends',
+            'social_django.context_processors.login_redirect',
+        )
+    ]
+
+# Remove social auth backends if defined
+try:
+    AUTHENTICATION_BACKENDS = tuple(
+        b for b in AUTHENTICATION_BACKENDS
+        if not b.startswith('social_core.backends.')
+    )
+except NameError:
+    pass
+
+# Remove social pipeline if defined
+try:
+    SOCIAL_AUTH_PIPELINE = tuple(
+        p for p in SOCIAL_AUTH_PIPELINE
+        if not p.startswith('social_core.pipeline')
+    )
+except NameError:
+    pass
+
 # Static files and sessions adjustments for Vercel serverless
 # Avoid ManifestStaticFilesStorage which requires collectstatic manifest
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
